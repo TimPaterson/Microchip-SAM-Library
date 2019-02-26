@@ -169,6 +169,7 @@
     <Folder Include="IoBuf\" />
     <Folder Include="IoBuf\" />
     <Folder Include="Math" />
+    <Folder Include="Nvm" />
     <Folder Include="Util" />
   </ItemGroup>
   <ItemGroup>
@@ -188,6 +189,18 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Math\DIVAS.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Nvm\EepromMgr.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Nvm\EepromMgr.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Nvm\Nvm.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Nvm\Nvm.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="sam_spec.h">

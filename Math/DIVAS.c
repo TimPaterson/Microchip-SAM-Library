@@ -44,15 +44,15 @@ uint64_t __aeabi_idivmod(int iDividend, int iDivisor)
 	// Ensure interrupts disabled
 	uSaveIrq = IrqSaveAndDisable();
 	
-	DIVAS->CTRLA.reg = DIVAS_CTRLA_SIGNED;	// signed, optimize leading zeros
+	DIVAS_IOBUS->CTRLA.reg = DIVAS_CTRLA_SIGNED;	// signed, optimize leading zeros
 
-	DIVAS->DIVIDEND.reg = iDividend;
-	DIVAS->DIVISOR.reg = iDivisor;		// Starts the operation
+	DIVAS_IOBUS->DIVIDEND.reg = iDividend;
+	DIVAS_IOBUS->DIVISOR.reg = iDivisor;		// Starts the operation
 	
-	while (DIVAS->STATUS.bit.BUSY);		// Wait for completion
+	while (DIVAS_IOBUS->STATUS.bit.BUSY);		// Wait for completion
 
-	iQuotient = DIVAS->RESULT.reg;
-	iRemainder = DIVAS->REM.reg;
+	iQuotient = DIVAS_IOBUS->RESULT.reg;
+	iRemainder = DIVAS_IOBUS->REM.reg;
 	
 	// Restore interrupts
 	IrqRestore(uSaveIrq);
@@ -77,15 +77,15 @@ uint64_t __aeabi_uidivmod(int uDividend, int uDivisor)
 	// Ensure interrupts disabled
 	uSaveIrq = IrqSaveAndDisable();
 	
-	DIVAS->CTRLA.reg = 0;		// unsigned, optimize leading zeros
+	DIVAS_IOBUS->CTRLA.reg = 0;		// unsigned, optimize leading zeros
 
-	DIVAS->DIVIDEND.reg = uDividend;
-	DIVAS->DIVISOR.reg = uDivisor;		// Starts the operation
+	DIVAS_IOBUS->DIVIDEND.reg = uDividend;
+	DIVAS_IOBUS->DIVISOR.reg = uDivisor;		// Starts the operation
 	
-	while (DIVAS->STATUS.bit.BUSY);		// Wait for completion
+	while (DIVAS_IOBUS->STATUS.bit.BUSY);		// Wait for completion
 
-	uQuotient = DIVAS->RESULT.reg;
-	uRemainder = DIVAS->REM.reg;
+	uQuotient = DIVAS_IOBUS->RESULT.reg;
+	uRemainder = DIVAS_IOBUS->REM.reg;
 	
 	// Restore interrupts
 	IrqRestore(uSaveIrq);
