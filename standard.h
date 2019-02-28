@@ -61,7 +61,27 @@ inline void wdt_reset() {if (!WDT->SYNCBUSY.bit.CLEAR) WDT->CLEAR.reg = WDT_CLEA
 static inline void cli()		{ __disable_irq(); }
 static inline void sei()		{ __enable_irq(); }
 
+typedef union
+{
+	ulong	ul;
+	long	l;
+	float	flt;
+	struct
+	{
+		ushort	uLo16;
+		ushort	uHi16;
+	};
+	struct
+	{
+		BYTE	bLo;
+		BYTE	bMidLo;
+		BYTE	bMidHi;
+		BYTE	bHi;
+	};
+} LONG_BYTES;
+
 #ifdef __cplusplus
+
 // Helpers to set up port configuration
 inline void SetPortConfig(uint uConfig, uint uPins, int iPort = 0)
 {
