@@ -162,6 +162,8 @@ protected:
 			ch = *psz++;
 			if (ch == 0)
 				return;
+			if (ch == '\n')
+				WriteByte('\r');
 			WriteByte(ch);		
 		}
 	}
