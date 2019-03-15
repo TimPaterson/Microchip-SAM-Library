@@ -10,112 +10,68 @@
 
 
 #include <Nvm\Nvm.h>
+#include <algorithm>	// for min()
 
 
-struct RowDesc
+template <class T, const T *pInit> class EepromMgr
 {
-	ushort	uVersion;
-	ushort	uCheckSum;
-};
+#define	ALIGN32(x)	(((x) + 3) & ~3)
 
-static const int ChecksumBase = 0x1234;
-static const int FlashRowSize = FLASH_PAGE_SIZE * NVMCTRL_ROW_PAGES;
-static const ushort InvalidVersion = 0xFFFF;
-static const int RowDataSize = FlashRowSize - sizeof(RowDesc);
-static const int PageHeadDataSize = FLASH_PAGE_SIZE - sizeof(RowDesc);
+protected:
+	struct RowDesc
+	{
+		ushort	usVersion;
+		ushort	usSize;
+		ulong	ulCheckSum;
+	};
 
-ushort CalcChecksum(void *pRow, int cb);
-ushort CalcChecksumRow(RowDesc *pRow, int cb);
-void memcpy32(void *pvDest, void *pvSrc, int cb);
-
-template <class T> class EepromMgr
-{
+	static constexpr int ChecksumBase = 0x12345678;
+	static constexpr int FlashRowSize = FLASH_PAGE_SIZE * NVMCTRL_ROW_PAGES;
+	static constexpr ulong Unprogrammed = 0xFFFFFFFF;
+	static constexpr ushort InvalidVersion = Unprogrammed;
+	static constexpr int RowDataSize = FlashRowSize - sizeof(RowDesc);
+	static constexpr int MaxEepromDataSize = NVMCTRL_RWWEE_PAGES / NVMCTRL_ROW_PAGES * RowDataSize;
+	static constexpr int PageHeadDataSize = FLASH_PAGE_SIZE - sizeof(RowDesc);
+	static constexpr int AlignedSize = ALIGN32(sizeof(T));
+	static constexpr int iRowCount = (AlignedSize + RowDataSize - 1) / RowDataSize;
+	
+// public interface
 public:
-	bool Load()
+	void NO_INLINE_ATTR Init()
 	{
-		int		iCount;
-		byte	*pbPos;
-		RowDesc	*pRowLo;
-		RowDesc	*pRowHi;
-		RowDesc	*pRow;
-		ushort	*pVersion;
-
-		pbPos = (byte *)&Data;
-		iCount = sizeof(T);
-		pRowLo = (RowDesc *)NVMCTRL_RWW_EEPROM_ADDR;
-		pVersion = &m_arVersion[0];
-		for (;;)
+		uint	iCount;
+		
+		iCount = Load();
+		if (iCount < sizeof(T))
 		{
-			pRowHi = (RowDesc *)ADDOFFSET(pRowLo, FlashRowSize);
-			if (pRowHi->uVersion == InvalidVersion)
-			{
-				if (pRowLo->uVersion == InvalidVersion)
-					return false;
-				pRow = pRowLo;
-			}
-			else if (pRowLo->uVersion == InvalidVersion)
-			{
-				pRow = pRowHi;
-			}
-			else
-			{
-				// Both rows have valid version numbers, pick biggest
-				if ((short)(pRowLo->uVersion - pRowHi->uVersion) > 0)
-					pRow = pRowLo;
-				else
-					pRow = pRowHi;
-			}
-
-			// See if row has valid checksum
-			if (CalcChecksumRow(pRow, iCount) != pRow->uCheckSum)
-			{
-				// Bad checksum, see if other row is OK
-				pRow = pRow == pRowLo ? pRowHi : pRowLo;
-				if (pRow->uVersion == InvalidVersion || CalcChecksumRow(pRow, iCount) != pRow->uCheckSum)
-					return false;
-			}
-
-			// Picked our row, copy data
-			*pVersion++ = pRow->uVersion;
-
-			if (iCount > RowDataSize)
-			{
-				memcpy32(pbPos, pRow + 1, RowDataSize);
-				iCount -= RowDataSize;
-				pbPos += RowDataSize;
-			}
-			else
-			{
-				memcpy32(pbPos, pRow + 1, iCount);
-				break;
-			}
-			pRowLo = (RowDesc *)ADDOFFSET(pRowLo, 2 * FlashRowSize);
+			// Copy in exact amount of data. Padding will retain its zero initialization.
+			memcpy(m_arbPaddedData + iCount, ADDOFFSET(pInit, iCount) , sizeof(T) - iCount);
 		}
-		return true;
 	}
-
-	void Save()
+	
+	void NO_INLINE_ATTR Save()
 	{
 		int		iCount;
-		int		iTmp;
-		ushort	uVer;
-		ushort	uCheck;
+		int		cbRow;
+		int		cbPage;
+		ushort	usVer;
+		ulong	ulCheck;
 		byte	*pbPos;
 		byte	*pbCur;
 		RowDesc	*pRowLo;
 		RowDesc	*pRow;
 		RowDesc	*pRowCur;
-		ushort	*pVersion;
+		RowDesc	**ppRow;
 
-		pbPos = (byte *)&Data;
-		iCount = sizeof(T);
+		pbPos = m_arbPaddedData;
+		iCount = AlignedSize;
 		pRowLo = (RowDesc *)NVMCTRL_RWW_EEPROM_ADDR;
-		pVersion = &m_arVersion[0];
+		ppRow = &m_arpRow[0];
 		for (;;)
 		{
-			uVer = *pVersion;
+			pRow = *ppRow;
 			pRowCur = (RowDesc *)ADDOFFSET(pRowLo, FlashRowSize);
-			if (pRowLo->uVersion == uVer)
+			if (pRowLo == pRow)
 			{
 				// Using Lo now, rewrite Hi
 				pRow = pRowCur;		// row to write, if needed
@@ -125,14 +81,13 @@ public:
 				pRow = pRowLo;
 
 			// See if any changes have been made to the original row
-			iTmp = iCount > RowDataSize ? RowDataSize : iCount;
-			uCheck = CalcChecksum(pbPos, iTmp);
-			if (uCheck != pRowCur->uCheckSum || memcmp(pRowCur + 1, pbPos, iTmp) != 0)
+			cbRow = std::min(iCount, RowDataSize);
+			ulCheck = CalcChecksum(pbPos, cbRow);
+			if (pRowCur->usSize != sizeof(T) || ulCheck != pRowCur->ulCheckSum || memcmp(pRowCur + 1, pbPos, cbRow) != 0)
 			{
-				uVer++;
-				if (uVer == InvalidVersion)
-					uVer = 0;
-				*pVersion = uVer;
+				usVer = pRowCur->usVersion + 1;
+				if (usVer == InvalidVersion)
+					usVer = 0;
 
 				// Clear the row we're using
 				Nvm::EraseRwweeRow(pRow);
@@ -140,65 +95,170 @@ public:
 				// Write to the page buffer. We write the first page
 				// with the page descriptor last because it denotes
 				// success.
-				iTmp = iCount - PageHeadDataSize;
-				if (iTmp > (NVMCTRL_ROW_PAGES - 1) * FLASH_PAGE_SIZE)
-					iTmp = (NVMCTRL_ROW_PAGES - 1) * FLASH_PAGE_SIZE;
-				pbCur = pbPos;
+				cbRow = std::min(iCount - PageHeadDataSize, (NVMCTRL_ROW_PAGES - 1) * FLASH_PAGE_SIZE);
+				pbCur = pbPos + PageHeadDataSize;
 				pRowCur = pRow;
-				while (iTmp > 0)
+				while (cbRow > 0)
 				{
-					// CONSIDER: do we need to wait before writing page buffer?
 					Nvm::WaitReady();
 
-					pbCur += FLASH_PAGE_SIZE;
 					pRowCur = (RowDesc *)ADDOFFSET(pRowCur, FLASH_PAGE_SIZE);
-					if (iTmp > FLASH_PAGE_SIZE)
-					{
-						memcpy32(pRowCur, pbCur, FLASH_PAGE_SIZE);
-						iCount -= FLASH_PAGE_SIZE;
-						iTmp -= FLASH_PAGE_SIZE;
-					}
-					else
-					{
-						memcpy32(pRowCur, pbCur, iTmp);
-						iCount -= iTmp;
-						iTmp = 0;
-					}
+					cbPage = std::min(cbRow, FLASH_PAGE_SIZE);
+					memcpy32(pRowCur, pbCur, cbPage);
 					Nvm::WriteRwweePage();
+					pbCur += FLASH_PAGE_SIZE;
+					iCount -= cbPage;
+					cbRow -= cbPage;
 				}
 
-				// CONSIDER: do we need to wait before writing page buffer?
 				Nvm::WaitReady();
 
 				// First page has descriptor
-				pRow->uVersion = uVer;
-				pRow->uCheckSum = uCheck;
+				pRow->usVersion = usVer;
+				pRow->usSize = sizeof(T);
+				pRow->ulCheckSum = ulCheck;
 
-				if (iCount > PageHeadDataSize)
-				{
-					memcpy32(pRow + 1, pbPos, PageHeadDataSize);
-					iCount -= PageHeadDataSize;
-				}
-				else
-				{
-					memcpy32(pRow + 1, pbPos, iCount);
-					iCount = 0;
-				}
+				cbPage = std::min(iCount, PageHeadDataSize);
+				memcpy32(pRow + 1, pbPos, cbPage);
 				Nvm::WriteRwweePage();
+				iCount -= cbPage;
 			}
+			else
+				iCount -= cbRow;
+				
 			if (iCount == 0)
+			{
+				*ppRow = pRow;	// update row we are using
 				break;
-			pbPos += FlashRowSize;
+			}
+			pbPos += RowDataSize;
 			pRowLo = (RowDesc *)ADDOFFSET(pRowLo, FlashRowSize * 2);
-			pVersion++;
+			ppRow++;
 		}
 	}
 
+// Protected methods
+protected:
+	int Load()
+	{
+		int		iCount;
+		int		cbLoad;
+		int		cbRow;
+		RowDesc	*pRowLo;
+		RowDesc	*pRowHi;
+		RowDesc	*pRow;
+		RowDesc	**ppRow;
+
+		cbLoad = 0;
+		pRowLo = (RowDesc *)NVMCTRL_RWW_EEPROM_ADDR;
+		ppRow = &m_arpRow[0];
+		do
+		{
+			pRowHi = (RowDesc *)ADDOFFSET(pRowLo, FlashRowSize);
+			if (pRowHi->usVersion == InvalidVersion)
+			{
+				if (pRowLo->usVersion == InvalidVersion)
+					return cbLoad;
+				pRow = pRowLo;
+			}
+			else if (pRowLo->usVersion == InvalidVersion)
+			{
+				pRow = pRowHi;
+			}
+			else
+			{
+				// Both rows have valid version numbers, pick biggest.
+				// Note version no. can wrap around zero, so we 
+				// subtract them instead of just comparing.
+				if ((short)(pRowLo->usVersion - pRowHi->usVersion) > 0)
+					pRow = pRowLo;
+				else
+					pRow = pRowHi;
+			}
+			
+			// Use count from first row
+			if (cbLoad == 0)
+				iCount = pRow->usSize;
+				
+			// See if row is valid
+			if (pRow->usSize != iCount || 
+				iCount > MaxEepromDataSize || 
+				CalcChecksumRow(pRow, iCount - cbLoad) != pRow->ulCheckSum)
+			{
+				// Bad checksum, see if other row is OK
+				pRow = pRow == pRowLo ? pRowHi : pRowLo;
+				
+				// Use count from first row
+				if (cbLoad == 0)
+					iCount = pRow->usSize;
+				
+				// See if row is valid
+				if (pRow->usVersion == InvalidVersion || 
+					pRow->usSize != iCount || 
+					iCount > MaxEepromDataSize || 
+					CalcChecksumRow(pRow, iCount - cbLoad) != pRow->ulCheckSum)
+				{
+					return cbLoad;
+				}
+			}
+
+			// Picked our row, copy data
+			*ppRow++ = pRow;
+
+			cbRow = std::min(std::min(ALIGN32(iCount), AlignedSize) - cbLoad, RowDataSize);
+			memcpy32(m_arbPaddedData + cbLoad, pRow + 1, cbRow);
+			cbLoad += cbRow;
+			pRowLo = (RowDesc *)ADDOFFSET(pRowLo, 2 * FlashRowSize);
+			
+		} while (cbLoad < iCount);
+		
+		return iCount;
+	}
+
+// Static functions
+protected:
+	static ulong NO_INLINE_ATTR CalcChecksumRow(RowDesc *pRow, int cb)
+	{
+		cb = ALIGN32(cb);
+		return CalcChecksum(pRow + 1, std::min(cb, RowDataSize));
+	}
+
+	static ulong NO_INLINE_ATTR CalcChecksum(void *pRow, int cb)
+	{
+		int		i;
+		int		sum;
+		uint	*puData;
+	
+		sum = ChecksumBase;
+		puData = (uint *)pRow;
+		for (i = 0; i < (int)(cb / sizeof *puData); i++)
+		{
+			sum += *puData++;
+		}
+		return sum;
+	}
+
+	static void NO_INLINE_ATTR memcpy32(void *pvDest, void *pvSrc, int cb)
+	{
+		uint	*puDest;
+		uint	*puSrc;
+	
+		puDest = (uint *)pvDest;
+		puSrc = (uint *)pvSrc;
+		for (cb /= sizeof(uint); cb > 0; cb--)
+			*puDest++ = *puSrc++;
+	}
+
+//*********************************************************************
+// Data
+
 public:
-	T Data;
+	union
+	{
+		T		Data;
+		byte	m_arbPaddedData[AlignedSize];
+	};
 
 protected:
-	static constexpr int iRowCount = (sizeof(T) + RowDataSize - 1)/ RowDataSize;
-
-	ushort	m_arVersion[iRowCount];
+	RowDesc	*m_arpRow[iRowCount];
 };
