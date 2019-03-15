@@ -25,7 +25,6 @@ protected:
 		ulong	ulCheckSum;
 	};
 
-	static constexpr int ChecksumBase = 0x12345678;
 	static constexpr int FlashRowSize = FLASH_PAGE_SIZE * NVMCTRL_ROW_PAGES;
 	static constexpr ulong Unprogrammed = 0xFFFFFFFF;
 	static constexpr ushort InvalidVersion = Unprogrammed;
@@ -225,16 +224,29 @@ protected:
 
 	static ulong NO_INLINE_ATTR CalcChecksum(void *pRow, int cb)
 	{
-		int		i;
 		int		sum;
+		
+#if	0	// Use CRC
+		PAC->WRCTRL.reg = PAC_WRCTRL_KEY_CLR | PAC_WRCTRL_PERID(ID_DSU);
+		DSU->ADDR.reg = (ulong)pRow;
+		DSU->LENGTH.reg = cb;
+		DSU->DATA.reg = 0xFFFFFFFF;
+		DSU->CTRL.reg = DSU_CTRL_CRC;
+		while (!DSU->STATUSA.bit.DONE);
+		DSU->STATUSA.reg = DSU_STATUSA_DONE;	// reset bit
+		sum = DSU->DATA.reg;
+#else
+		int		i;
 		uint	*puData;
 	
-		sum = ChecksumBase;
+		sum = cb;
 		puData = (uint *)pRow;
 		for (i = 0; i < (int)(cb / sizeof *puData); i++)
 		{
 			sum += *puData++;
 		}
+#endif
+
 		return sum;
 	}
 
