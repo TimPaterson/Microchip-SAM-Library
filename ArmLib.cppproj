@@ -30,15 +30,15 @@
     <eraseonlaunchrule>0</eraseonlaunchrule>
     <AsfFrameworkConfig>
       <framework-data>
-  <options />
-  <configurations />
-  <files />
-  <documentation help="" />
-  <offline-documentation help="" />
-  <dependencies>
-    <content-extension eid="atmel.asf" uuidref="Atmel.ASF" version="3.37" />
-  </dependencies>
-</framework-data>
+        <options />
+        <configurations />
+        <files />
+        <documentation help="" />
+        <offline-documentation help="" />
+        <dependencies>
+          <content-extension eid="atmel.asf" uuidref="Atmel.ASF" version="3.37" />
+        </dependencies>
+      </framework-data>
     </AsfFrameworkConfig>
     <SccProjectName>$/ARM/ArmLib</SccProjectName>
     <SccProvider>MSSCCI:SourceGear Vault Professional Classic Client</SccProvider>
@@ -189,9 +189,6 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Math\DIVAS.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="Nvm\EepromMgr.cpp">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Nvm\EepromMgr.h">
