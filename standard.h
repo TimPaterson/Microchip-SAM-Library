@@ -116,6 +116,18 @@ inline void SetPortMux(uint uMux, uint uPins, int iPort = 0)
 		iPort
 	);
 }
+
+inline void SetPortMuxPin(uint uMux, uint uPin)
+{
+	SetPortConfig(		
+		PORT_WRCONFIG_WRPMUX |
+		PORT_WRCONFIG_PMUX(uMux) |
+		PORT_WRCONFIG_INEN |
+		PORT_WRCONFIG_PMUXEN,
+		1 << (uPin & 0x1F),
+		uPin >> 5
+	);
+}
 #endif
 
 enum PORT_MUX
