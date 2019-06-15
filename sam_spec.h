@@ -72,8 +72,12 @@ struct NvmSofwareCal_t
 	uint64_t	ADC_LINEARITY:8;
 	uint64_t	ADC_BIAS:3;
 	uint64_t	OSC32K:7;
-	uint64_t	:13;
-	// WARNING!: the DFLL48M values are not set in Rev C devices!
+	
+	// USB fields apply only to D21
+	uint64_t	USB_TRANSN:5;
+	uint64_t	USB_TRANSP:5;
+	uint64_t	USB_TRIM:3;
+	
 	uint64_t	DFLL48M_COARSE:6;	// not set in Rev C
 	uint64_t	DFLL48M_FINE:10;	// not set in Rev C
 	uint64_t	:54;
