@@ -77,16 +77,45 @@ public:
 	//************************************************************************
 	// These methods override methods in IoBuf.h
 	
-	void WriteByte(BYTE b);
-	void WriteString(const char *psz);
-	void WriteBytes(void *pv, BYTE cb);
-
+protected:
 	// We need our WriteByte to enable interrupts
 	void WriteByteInline(BYTE b)
 	{
 		IoBuf::WriteByteInline(b);
 		// Enable interrupts
 		GetUsart()->INTENSET.reg = SERCOM_USART_INTENCLR_DRE;
+	}
+
+public:
+	// We need our WriteByte to enable interrupts
+	void WriteByte(BYTE b) NO_INLINE_ATTR
+	{
+		WriteByteInline(b);
+	}
+
+	// We need our own WriteString to use our own WriteByte
+	void WriteString(const char *psz) NO_INLINE_ATTR
+	{
+		char	ch;
+		
+		for (;;)
+		{
+			ch = *psz++;
+			if (ch == 0)
+				return;
+			if (ch == '\n')
+				WriteByte('\r');
+			WriteByte(ch);
+		}
+	}
+
+	// We need our own WriteBytes to use our own WriteByte
+	void WriteBytes(void *pv, BYTE cb) NO_INLINE_ATTR
+	{
+		BYTE	*pb;
+		
+		for (pb = (BYTE *)pv; cb > 0; cb--, pb++)
+			WriteByte(*pb);
 	}
 
 	//************************************************************************
@@ -148,11 +177,28 @@ public:
 		GetUsart()->BAUD.reg = rate;
 	}
 
-	uint16_t GetBaudReg()
+	void SetBaudRate(uint32_t rate, uint32_t clock) NO_INLINE_ATTR
 	{
-		return GetUsart()->BAUD.reg;
+		uint32_t	quo;
+		uint32_t	quoBit;
+		
+		rate *= 16;		// actual clock frequency
+		// Need 17-bit result of rate / clock
+		for (quo = 0, quoBit = 1 << 16; quoBit != 0; quoBit >>= 1)
+		{
+			if (rate >= clock)
+			{
+				rate -= clock;
+				quo |= quoBit;
+			}
+			rate <<= 1;
+		}
+		// Round
+		if (rate >= clock)
+			quo++;
+		SetBaudReg((uint16_t)-quo);
 	}
-
+	
 	void SetBaudRate(uint32_t rate)
 	{
 		SetBaudRate(rate, F_CPU);
@@ -168,21 +214,12 @@ public:
 		SetBaudReg(SERCOM_ASYNC_BAUD(rate, clock));
 	}
 
-	uint32_t GetBaudRate()
-	{
-		return 0;
-	}
-
 	BYTE IsXmitInProgress()
 	{
 		return GetUsart()->INTENCLR.reg & SERCOM_USART_INTFLAG_DRE;
 	}
 
 	SercomUsart *GetUsart()		{return (SercomUsart *)m_pvIO;}
-		
-public:
-	void SetBaudRate(uint32_t rate, uint32_t clock);
-
 };
 
 //****************************************************************************
@@ -247,33 +284,46 @@ protected:
 //****************************************************************************
 // Half-duplex version
 
-class UsartBufHalf_t : public UsartBuf_t
-{
-public:
-	// We need our WriteByte to enable output driver
-	void WriteByte(BYTE b);
-	void WriteString(const char *psz);
-	void WriteBytes(void *pv, BYTE cb);
-	
-protected:
-	void WriteByteInline(BYTE b)
-	{
-		UsartBuf_t::WriteByteInline(b);
-		// Enable interrupts
-		GetUsart()->INTENSET.reg = SERCOM_USART_INTENCLR_DRE;
-	}
-};
-
-//****************************************************************************
-
 template <int pusart, BYTE cbRcvBuf, BYTE cbXmitBuf, UsartHalfDuplexDriver_t driverOff, 
-	UsartHalfDuplexDriver_t driverOn> class UsartBufHalf : public UsartBufHalf_t
+	UsartHalfDuplexDriver_t driverOn> class UsartBufHalf : public UsartBuf_t
 {
 public:
 	UsartBufHalf()
 	{
 		IoBuf::Init(cbRcvBuf, cbXmitBuf);
 		m_pvIO = (SercomUsart *)pusart;
+	}
+
+	// We need our WriteByte to enable output driver
+	void WriteByte(BYTE b) NO_INLINE_ATTR
+	{
+		driverOn();
+		UsartBuf_t::WriteByteInline(b);
+	}
+
+	// We need our own WriteString to use our own WriteByte
+	void WriteString(const char *psz) NO_INLINE_ATTR
+	{
+		char	ch;
+		
+		for (;;)
+		{
+			ch = *psz++;
+			if (ch == 0)
+				return;
+			if (ch == '\n')
+				WriteByte('\r');
+			WriteByte(ch);
+		}
+	}
+
+	// We need our own WriteBytes to use our own WriteByte
+	void WriteBytes(void *pv, BYTE cb) NO_INLINE_ATTR
+	{
+		BYTE	*pb;
+		
+		for (pb = (BYTE *)pv; cb > 0; cb--, pb++)
+			WriteByte(*pb);
 	}
 
 	//************************************************************************

@@ -173,19 +173,10 @@
     <Folder Include="Util" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="IoBuf\IoBuf.cpp">
-      <SubType>compile</SubType>
-    </Compile>
     <Compile Include="IoBuf\IoBuf.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="IoBuf\UsartBuf.cpp">
-      <SubType>compile</SubType>
-    </Compile>
     <Compile Include="IoBuf\UsartBuf.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="IoBuf\UsartBufHalf.cpp">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Math\DIVAS.c">

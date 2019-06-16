@@ -24,18 +24,18 @@ class IoBufBase {};
 class IoBuf : public IOBUFBASE
 {
 public:
-	void WriteByte(BYTE b);
-	void WriteBytes(void *pv, BYTE cb);
-	BYTE ReadByte();
-	void ReadBytes(void *pv, BYTE cb);
-	BYTE ReadByteWdr();
-	BYTE PeekByte();
-	BYTE PeekByte(int off);
-	int BytesCanWrite();
-	int BytesCanRead();
-	bool CanWriteByte();
-	void DiscardReadBuf(BYTE bCnt);
-	void WriteString(const char *psz);
+	NO_INLINE_ATTR void WriteByte(BYTE b)				{ WriteByteInline(b); }
+	NO_INLINE_ATTR void WriteBytes(void *pv, BYTE cb)	{ WriteBytesInline(pv, cb); }
+	NO_INLINE_ATTR BYTE ReadByte()						{ return ReadByteInline(); }
+	NO_INLINE_ATTR void ReadBytes(void *pv, BYTE cb)	{ ReadBytesInline(pv, cb); }
+	NO_INLINE_ATTR BYTE ReadByteWdr()					{ return ReadByteWdrInline(); }
+	NO_INLINE_ATTR BYTE PeekByte()						{ return PeekByteInline(); }
+	NO_INLINE_ATTR BYTE PeekByte(int off)				{ return PeekByteInline(off); }
+	NO_INLINE_ATTR int BytesCanWrite()					{ return BytesCanWriteInline(); }
+	NO_INLINE_ATTR int BytesCanRead()					{ return BytesCanReadInline(); }
+	NO_INLINE_ATTR bool CanWriteByte()					{ return CanWriteByteInline(); }
+	NO_INLINE_ATTR void DiscardReadBuf(BYTE bCnt)		{ DiscardReadBufInline(bCnt); }
+	NO_INLINE_ATTR void WriteString(const char *psz)	{ WriteStringInline(psz); }
 
 public:
 	bool IsByteReady()		{ return m_pbNextRcvIn != m_pbNextRcvOut; }
