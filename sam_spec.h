@@ -34,19 +34,6 @@
 #endif
 
 //*********************************************************************
-// Define SERCOM base
-
-#if		defined(__SAMC20__) || defined(__SAMC21__)
-
-#define SERCOM_BASE	(0x42000400)
-
-#elif	defined(__SAMD10__) || defined(__SAMD11__) || defined(__SAMD20__) || defined(__SAMD21__)
-
-#define SERCOM_BASE	(0x42000800)
-
-#endif
-
-//*********************************************************************
 // Define calibration row
 
 #if		defined(__SAMC20__) || defined(__SAMC21__)

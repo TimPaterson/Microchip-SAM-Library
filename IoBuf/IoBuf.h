@@ -10,31 +10,24 @@
 // class in UsartBuf.h shows how to create a template that creates a 
 // derived class with specific buffer sizes.
 //
-// If the symbol IOBUFBASE is defined, IoBuf derives from it.
-//
 //****************************************************************************
 
 #pragma once
 
-#ifndef IOBUFBASE
-class IoBufBase {};
-#define IOBUFBASE	IoBufBase
-#endif
-
-class IoBuf : public IOBUFBASE
+class IoBuf
 {
 public:
 	NO_INLINE_ATTR void WriteByte(BYTE b)				{ WriteByteInline(b); }
-	NO_INLINE_ATTR void WriteBytes(void *pv, BYTE cb)	{ WriteBytesInline(pv, cb); }
+	NO_INLINE_ATTR void WriteBytes(void *pv, int cb)	{ WriteBytesInline(pv, cb); }
 	NO_INLINE_ATTR BYTE ReadByte()						{ return ReadByteInline(); }
-	NO_INLINE_ATTR void ReadBytes(void *pv, BYTE cb)	{ ReadBytesInline(pv, cb); }
+	NO_INLINE_ATTR void ReadBytes(void *pv, int cb)		{ ReadBytesInline(pv, cb); }
 	NO_INLINE_ATTR BYTE ReadByteWdr()					{ return ReadByteWdrInline(); }
 	NO_INLINE_ATTR BYTE PeekByte()						{ return PeekByteInline(); }
 	NO_INLINE_ATTR BYTE PeekByte(int off)				{ return PeekByteInline(off); }
 	NO_INLINE_ATTR int BytesCanWrite()					{ return BytesCanWriteInline(); }
 	NO_INLINE_ATTR int BytesCanRead()					{ return BytesCanReadInline(); }
 	NO_INLINE_ATTR bool CanWriteByte()					{ return CanWriteByteInline(); }
-	NO_INLINE_ATTR void DiscardReadBuf(BYTE bCnt)		{ DiscardReadBufInline(bCnt); }
+	NO_INLINE_ATTR void DiscardReadBuf(int cnt)			{ DiscardReadBufInline(cnt); }
 	NO_INLINE_ATTR void WriteString(const char *psz)	{ WriteStringInline(psz); }
 
 public:
@@ -57,7 +50,7 @@ protected:
 		m_pbNextXmitIn = pb;
 	}
 
-	void WriteBytesInline(void *pv, BYTE cb)
+	void WriteBytesInline(void *pv, int cb)
 	{
 		BYTE	*pb;
 		
@@ -72,7 +65,7 @@ protected:
 		return ReturnByte();
 	}
 
-	void ReadBytesInline(void *pv, BYTE cb)
+	void ReadBytesInline(void *pv, int cb)
 	{
 		BYTE	*pb;
 		
@@ -143,11 +136,11 @@ protected:
 		return pb != m_pbNextXmitOut;
 	}
 
-	void DiscardReadBufInline(BYTE bCnt)
+	void DiscardReadBufInline(int cnt)
 	{
 		BYTE	*pb;
 
-		pb = m_pbNextRcvOut + bCnt;
+		pb = m_pbNextRcvOut + cnt;
 		if (pb >= m_pbRcvBufEnd)
 			pb -= m_pbRcvBufEnd - GetRcvBuf();
 		m_pbNextRcvOut = pb;
@@ -255,7 +248,7 @@ protected:
 	//************************************************************************
 
 protected:
-	void Init(BYTE cbRcvBuf, BYTE cbXmitBuf)
+	void Init(int cbRcvBuf, int cbXmitBuf)
 	{
 		m_pbNextRcvIn = m_pbNextRcvOut = GetRcvBuf(); 
 		m_pbRcvBufEnd =  GetRcvBuf() + cbRcvBuf;
@@ -295,5 +288,5 @@ protected:
 
 protected:
 	// Receive buffer
-	BYTE m_arbRcvBuf[0];
+	BYTE	m_arbRcvBuf[0];
 };
