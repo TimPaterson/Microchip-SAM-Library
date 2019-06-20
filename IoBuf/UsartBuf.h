@@ -301,38 +301,6 @@ public:
 		m_pvIO = (SercomUsart *)((byte *)SERCOM0 + iUsart * SERCOM_SIZE);
 	}
 
-	// We need our WriteByte to enable output driver
-	void WriteByte(BYTE b) NO_INLINE_ATTR
-	{
-		driverOn();
-		UsartBuf_t::WriteByteInline(b);
-	}
-
-	// We need our own WriteString to use our own WriteByte
-	void WriteString(const char *psz) NO_INLINE_ATTR
-	{
-		char	ch;
-		
-		for (;;)
-		{
-			ch = *psz++;
-			if (ch == 0)
-				return;
-			if (ch == '\n')
-				WriteByte('\r');
-			WriteByte(ch);
-		}
-	}
-
-	// We need our own WriteBytes to use our own WriteByte
-	void WriteBytes(void *pv, int cb) NO_INLINE_ATTR
-	{
-		BYTE	*pb;
-		
-		for (pb = (BYTE *)pv; cb > 0; cb--, pb++)
-			WriteByte(*pb);
-	}
-
 public:
 	void Init(RxPad padRx, TxPad padTx)
 	{
@@ -365,6 +333,7 @@ public:
 		{
 			if (UsartBuf_t::IsByteToSend())
 			{
+				driverOn();
 				pUsart->DATA.reg = UsartBuf_t::SendByte();
 			}
 			else
@@ -374,7 +343,7 @@ public:
 		if (pUsart->INTFLAG.bit.TXC)
 		{
 			driverOff();
-			pUsart->INTFLAG.bit.TXC = 1;	//clear TXC
+			pUsart->INTFLAG.reg = SERCOM_USART_INTFLAG_TXC;	//clear TXC
 		}
 	}
 
