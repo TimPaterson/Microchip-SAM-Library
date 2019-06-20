@@ -19,6 +19,7 @@ class IoBuf
 public:
 	NO_INLINE_ATTR void WriteByte(BYTE b)				{ WriteByteInline(b); }
 	NO_INLINE_ATTR void WriteBytes(void *pv, int cb)	{ WriteBytesInline(pv, cb); }
+	NO_INLINE_ATTR void WriteString(const char *psz)	{ WriteStringInline(psz); }
 	NO_INLINE_ATTR BYTE ReadByte()						{ return ReadByteInline(); }
 	NO_INLINE_ATTR void ReadBytes(void *pv, int cb)		{ ReadBytesInline(pv, cb); }
 	NO_INLINE_ATTR BYTE ReadByteWdr()					{ return ReadByteWdrInline(); }
@@ -28,7 +29,6 @@ public:
 	NO_INLINE_ATTR int BytesCanRead()					{ return BytesCanReadInline(); }
 	NO_INLINE_ATTR bool CanWriteByte()					{ return CanWriteByteInline(); }
 	NO_INLINE_ATTR void DiscardReadBuf(int cnt)			{ DiscardReadBufInline(cnt); }
-	NO_INLINE_ATTR void WriteString(const char *psz)	{ WriteStringInline(psz); }
 
 public:
 	bool IsByteReady()		{ return m_pbNextRcvIn != m_pbNextRcvOut; }
