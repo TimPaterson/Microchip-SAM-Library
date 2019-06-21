@@ -278,14 +278,15 @@ public:
 		MCLK->APBCMASK.reg |= 1 << (MCLK_APBCMASK_SERCOM0_Pos + iUsart);
 
 		// Clock it with GCLK0
-		GCLK->PCHCTRL[SERCOM0_GCLK_ID_CORE + iUsart].reg = GCLK_PCHCTRL_GEN_GCLK0 | GCLK_PCHCTRL_CHEN;
+		GCLK->PCHCTRL[SERCOM0_GCLK_ID_CORE + iUsart].reg = GCLK_PCHCTRL_GEN_GCLK0 | 
+			GCLK_PCHCTRL_CHEN;
 #else
 		// Enable clock
 		PM->APBCMASK.reg |= 1 << (PM_APBCMASK_SERCOM0_Pos + iUsart);
 
 		// Clock it with GCLK0
 		GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 |
-		(GCLK_CLKCTRL_ID_SERCOM0_CORE + iUsart);
+			(GCLK_CLKCTRL_ID_SERCOM0_CORE + iUsart);
 #endif
 
 		// standard 8,N,1 parameters
@@ -309,7 +310,7 @@ public:
 	{
 		NVIC_DisableIRQ((IRQn)(SERCOM0_IRQn + iUsart));
 		GetUsart()->CTRLA.bit.ENABLE = 0;
-		GetUsart()->INTENCLR.reg = SERCOM_USART_INTFLAG_RXC | SERCOM_USART_INTFLAG_DRE;
+		GetUsart()->INTENCLR.reg = SERCOM_USART_INTFLAG_RXC | SERCOM_USART_INTFLAG_DRE | SERCOM_USART_INTFLAG_TXC;
 	}
 
 	uint32_t IsEnabled()
