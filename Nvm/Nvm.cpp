@@ -28,19 +28,6 @@ void Nvm::EraseRow(void *pv)
 	EraseRow();
 }
 
-void Nvm::EraseRwweeRow()
-{
-	WaitReady();
-	NVMCTRL->CTRLA.reg = NVMCTRL_CTRLA_CMDEX_KEY | NVMCTRL_CTRLA_CMD_RWWEEER;
-}
-
-void Nvm::EraseRwweeRow(void *pv)
-{
-	WaitReady();
-	NVMCTRL->ADDR.reg = (uint)pv >> 1;
-	EraseRwweeRow();
-}
-
 void Nvm::WritePage()
 {
 	WaitReady();
@@ -52,6 +39,21 @@ void Nvm::WritePage(void *pv)
 	WaitReady();
 	NVMCTRL->ADDR.reg = (uint)pv >> 1;
 	WritePage();
+}
+
+#ifdef NVMCTRL_CTRLA_CMD_RWWEEER
+
+void Nvm::EraseRwweeRow()
+{
+	WaitReady();
+	NVMCTRL->CTRLA.reg = NVMCTRL_CTRLA_CMDEX_KEY | NVMCTRL_CTRLA_CMD_RWWEEER;
+}
+
+void Nvm::EraseRwweeRow(void *pv)
+{
+	WaitReady();
+	NVMCTRL->ADDR.reg = (uint)pv >> 1;
+	EraseRwweeRow();
 }
 
 void Nvm::WriteRwweePage()
@@ -66,3 +68,5 @@ void Nvm::WriteRwweePage(void *pv)
 	NVMCTRL->ADDR.reg = (uint)pv >> 1;
 	WriteRwweePage();
 }
+
+#endif

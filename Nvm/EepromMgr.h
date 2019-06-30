@@ -12,6 +12,9 @@
 #include <Nvm\Nvm.h>
 #include <algorithm>	// for min()
 
+#ifndef NVMCTRL_RWW_EEPROM_ADDR
+#define NVMCTRL_RWW_EEPROM_ADDR	(FLASH_SIZE - NVMCTRL_RWWEE_PAGES * FLASH_PAGE_SIZE)
+#endif
 
 template <class T, const T *pInit> class EepromMgr
 {
