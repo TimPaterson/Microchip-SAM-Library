@@ -367,6 +367,13 @@ public:
 		return GetUsart()->INTENCLR.reg & SERCOM_USART_INTFLAG_DRE;
 	}
 
+	// Write directly to the USART data port. Very fast output,
+	// useful for debugging.
+	void DirectWriteByte(byte b)
+	{
+		GetUsart()->DATA.reg = b;
+	}
+
 	SercomUsart *GetUsart()		{return (SercomUsart *)m_pvIO;}
 };
 
