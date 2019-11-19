@@ -37,7 +37,7 @@ typedef	uint8_t			bool;
 #define INLINE_ATTR		__attribute__((always_inline))
 #define DEPRECATED_ATTR	__attribute__((deprecated))
 #define PACKED_ATTR		__attribute__((packed))
-#define ALIGNED_ATTR(a)	__attribute__((aligned(a)))
+#define ALIGNED_ATTR(typ)	__attribute__((aligned(sizeof(typ))))
 #define _BV(bit)		(1 << (bit))
 #define LOBYTE(w)       ((BYTE)(ushort)(w))
 #define HIBYTE(w)       ((BYTE)((ushort)(w) >> 8))
