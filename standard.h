@@ -38,6 +38,7 @@ typedef	uint8_t			bool;
 #define DEPRECATED_ATTR	__attribute__((deprecated))
 #define PACKED_ATTR		__attribute__((packed))
 #define ALIGNED_ATTR(typ)	__attribute__((aligned(sizeof(typ))))
+#define RAMFUNC			__attribute__ ((section(".ramfunc")))
 #define _BV(bit)		(1 << (bit))
 #define LOBYTE(w)       ((BYTE)(ushort)(w))
 #define HIBYTE(w)       ((BYTE)((ushort)(w) >> 8))
@@ -46,6 +47,8 @@ typedef	uint8_t			bool;
 #define CONCAT(x,y)		CONCAT_(x,y)
 #define CAT3_(x,y,z)	x##y##z
 #define CAT3(x,y,z)		CAT3_(x,y,z)
+#define STRINGIFY_(x)	#x
+#define STRINGIFY(x)	STRINGIFY_(x)
 
 #ifdef __cplusplus
 #define EXTERN_C extern "C"

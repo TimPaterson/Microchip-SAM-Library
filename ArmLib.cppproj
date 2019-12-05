@@ -185,9 +185,6 @@
     <Compile Include="Nvm\EepromMgr.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="Nvm\Nvm.cpp">
-      <SubType>compile</SubType>
-    </Compile>
     <Compile Include="Nvm\Nvm.h">
       <SubType>compile</SubType>
     </Compile>

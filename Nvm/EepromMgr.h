@@ -106,7 +106,7 @@ public:
 
 					pRowCur = (RowDesc *)ADDOFFSET(pRowCur, FLASH_PAGE_SIZE);
 					cbPage = std::min(cbRow, FLASH_PAGE_SIZE);
-					memcpy32(pRowCur, pbCur, cbPage);
+					Nvm::memcpy32(pRowCur, pbCur, cbPage);
 					Nvm::WriteRwweePage();
 					pbCur += FLASH_PAGE_SIZE;
 					iCount -= cbPage;
@@ -121,7 +121,7 @@ public:
 				pRow->ulCheckSum = ulCheck;
 
 				cbPage = std::min(iCount, PageHeadDataSize);
-				memcpy32(pRow + 1, pbPos, cbPage);
+				Nvm::memcpy32(pRow + 1, pbPos, cbPage);
 				Nvm::WriteRwweePage();
 				iCount -= cbPage;
 			}
@@ -208,7 +208,7 @@ protected:
 			*ppRow++ = pRow;
 
 			cbRow = std::min(std::min(ALIGN32(iCount), AlignedSize) - cbLoad, RowDataSize);
-			memcpy32(m_arbPaddedData + cbLoad, pRow + 1, cbRow);
+			Nvm::memcpy32(m_arbPaddedData + cbLoad, pRow + 1, cbRow);
 			cbLoad += cbRow;
 			pRowLo = (RowDesc *)ADDOFFSET(pRowLo, 2 * FlashRowSize);
 			
@@ -251,17 +251,6 @@ protected:
 #endif
 
 		return sum;
-	}
-
-	static void NO_INLINE_ATTR memcpy32(void *pvDest, void *pvSrc, int cb)
-	{
-		uint	*puDest;
-		uint	*puSrc;
-	
-		puDest = (uint *)pvDest;
-		puSrc = (uint *)pvSrc;
-		for (cb /= sizeof(uint); cb > 0; cb--)
-			*puDest++ = *puSrc++;
 	}
 
 //*********************************************************************
