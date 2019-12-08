@@ -42,7 +42,8 @@ typedef	uint8_t			bool;
 #define _BV(bit)		(1 << (bit))
 #define LOBYTE(w)       ((BYTE)(ushort)(w))
 #define HIBYTE(w)       ((BYTE)((ushort)(w) >> 8))
-#define DIV_INT_ROUND(x, y)	(((x) + (y) / 2) / (y))
+#define DIV_INT_ROUND(x, y)	(((x) + (y) / 2) / (y))	// deprecated name: doesn't work if < 0
+#define DIV_UINT_RND(x, y)	(((x) + (y) / 2) / (y))
 #define CONCAT_(x,y)	x##y
 #define CONCAT(x,y)		CONCAT_(x,y)
 #define CAT3_(x,y,z)	x##y##z
