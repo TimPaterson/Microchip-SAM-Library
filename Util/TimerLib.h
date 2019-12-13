@@ -125,10 +125,15 @@ public:
 		{ return CheckInterval_ticks(TicksFromFreq(f), fForceRestart, time); }
 			
 public:
-	static Timer_t TicksFromUs(double us)	{ return us * TimerClockFreq / 1000000 + 0.5; }
-	static Timer_t TicksFromMs(double ms)	{ return ms * TimerClockFreq / 1000 + 0.5; }
-	static Timer_t TicksFromSec(double sec)	{ return sec * TimerClockFreq + 0.5; }
-	static Timer_t TicksFromFreq(double f)	{ return TimerClockFreq / f + 0.5; }
+	// Calculate tick count from interval or rate
+	static Timer_t TicksFromUs(double us)	{ return lround(us * TimerClockFreq / 1000000); }
+	static Timer_t TicksFromMs(double ms)	{ return lround(ms * TimerClockFreq / 1000); }
+	static Timer_t TicksFromSec(double sec)	{ return lround(sec * TimerClockFreq); }
+	static Timer_t TicksFromFreq(double f)	{ return lround(TimerClockFreq / f); }
+
+	// Integer versions suitable for use at runtime
+	static Timer_t TicksFromFreq(uint f)	{ return DIV_UINT_RND((uint)lround(TimerClockFreq), f); }
+	static Timer_t TicksFromFreq(int f)		{ return TicksFromFreq((uint)f); }
 		
 public:
 	bool CheckDelay_ticks(Timer_t ticks)
