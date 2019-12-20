@@ -39,6 +39,12 @@ protected:
 	
 // public interface
 public:
+	void Reset()
+	{
+		memcpy(m_arbPaddedData, pInit , sizeof(T));
+	}
+
+public:
 	void NO_INLINE_ATTR Init()
 	{
 		uint	iCount;

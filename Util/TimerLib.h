@@ -136,6 +136,18 @@ public:
 	static Timer_t TicksFromFreq(int f)		{ return TicksFromFreq((uint)f); }
 		
 public:
+	// Get the interval so far
+	Timer_t GetIntervalTicks()
+	{
+		return GetIntervalTicks(GetTickCount());
+	}
+
+	Timer_t GetIntervalTicks(Timer_t time)
+	{
+		return (Timer_t)(time - m_uLastTime);
+	}
+
+public:
 	bool CheckDelay_ticks(Timer_t ticks)
 	{
 		return CheckDelay_ticks(ticks, GetTickCount());
