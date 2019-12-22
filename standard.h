@@ -52,6 +52,8 @@ typedef	uint8_t			bool;
 #define STRINGIFY_(x)	#x
 #define STRINGIFY(x)	STRINGIFY_(x)
 
+inline bool CompSign(int s1, int s2)	{ return (s1 ^ s2) >= 0; }
+
 #ifdef __cplusplus
 #define EXTERN_C extern "C"
 #else
