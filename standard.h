@@ -53,12 +53,25 @@ typedef	uint8_t			bool;
 #define STRINGIFY(x)	STRINGIFY_(x)
 
 inline bool CompSign(int s1, int s2)		{ return (s1 ^ s2) >= 0; }
-inline int DivIntByUintRnd(int n, uint d)	{ return (int)(n + (n < 0 ? -(d/2) : d/2)) / (int)d; }
-inline int ShiftIntRnd(int n, int s)		
-{
-	int rnd = 1 << (s - 1);
-	return (n + (n < 0 ? -rnd : rnd)) >> s;
+inline int ShiftIntRnd(int n, int s)		{ return ((n >> (s - 1)) + 1) >> 1; }
+inline int ShiftUintRnd(uint n, int s)		{ return ((n >> (s - 1)) + 1) >> 1; }
+inline int DivIntByUintRnd(int n, uint d)		
+{ 
+	int sgn = n >> (sizeof(n)*8-1);	// 0 or -1
+	return (n + (int)(((d / 2) ^ sgn) - sgn)) / (int)d; 
 }
+inline int DivIntRnd(int n, int d)		
+{ 
+	int rnd = d / 2;
+	return (n + ((n ^ d) < 0 ? -rnd : rnd)) / d; 
+}
+/*
+inline int DivIntRnd(int n, int d)		
+{ 
+	int sgn = (n ^ d) >> (sizeof(n)*8-1);	// 0 or -1
+	return (n + ((d ^ sgn) - sgn) / 2) / d; 
+}
+*/
 
 #ifdef __cplusplus
 #define EXTERN_C extern "C"
