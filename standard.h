@@ -33,7 +33,7 @@ typedef	uint8_t			bool;
 #define _countof(array) (sizeof(array)/sizeof(array[0]))
 #endif
 #define STRLEN(str)		(sizeof str - 1)	// characters in string literal
-#define ADDOFFSET(p, o)	(((BYTE *)(p)) + (o))
+#define ADDOFFSET(p, o)	(((byte *)(p)) + (o))
 #define NO_INLINE_ATTR	__attribute__((noinline))
 #define INLINE_ATTR		__attribute__((always_inline))
 #define DEPRECATED_ATTR	__attribute__((deprecated))
@@ -41,8 +41,8 @@ typedef	uint8_t			bool;
 #define ALIGNED_ATTR(typ)	__attribute__((aligned(sizeof(typ))))
 #define RAMFUNC			__attribute__ ((section(".ramfunc")))
 #define _BV(bit)		(1 << (bit))
-#define LOBYTE(w)       ((BYTE)(ushort)(w))
-#define HIBYTE(w)       ((BYTE)((ushort)(w) >> 8))
+#define LOBYTE(w)       ((byte)(w))
+#define HIBYTE(w)       ((byte)((ushort)(w) >> 8))
 #define DIV_INT_ROUND(x, y)	(((x) + (y) / 2) / (y))	// deprecated name: doesn't work if < 0
 #define DIV_UINT_RND(x, y)	(((x) + (y) / 2) / (y))
 #define CONCAT_(x,y)	x##y
@@ -99,10 +99,10 @@ typedef union
 	};
 	struct
 	{
-		BYTE	bLo;
-		BYTE	bMidLo;
-		BYTE	bMidHi;
-		BYTE	bHi;
+		byte	bLo;
+		byte	bMidLo;
+		byte	bMidHi;
+		byte	bHi;
 	};
 } LONG_BYTES;
 
