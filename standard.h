@@ -118,11 +118,14 @@ inline void ClearPinsA(uint pins)	{ PORT_IOBUS->Group[0].OUTCLR.reg = pins; }
 inline void ClearPinsB(uint pins)	{ PORT_IOBUS->Group[1].OUTCLR.reg = pins; }
 inline void TogglePinsA(uint pins)	{ PORT_IOBUS->Group[0].OUTTGL.reg = pins; }
 inline void TogglePinsB(uint pins)	{ PORT_IOBUS->Group[1].OUTTGL.reg = pins; }
+inline uint GetPinsA(uint pins)		{ return PORT_IOBUS->Group[0].IN.reg & pins; }
+inline uint GetPinsB(uint pins)		{ return PORT_IOBUS->Group[1].IN.reg & pins; }
 
 // For any port using port number (0 = PORTA, etc.)
 inline void SetPins(uint pins, int iPort)		{ PORT_IOBUS->Group[iPort].OUTSET.reg = pins; }
 inline void ClearPins(uint pins, int iPort)		{ PORT_IOBUS->Group[iPort].OUTCLR.reg = pins; }
 inline void TogglePins(uint pins, int iPort)	{ PORT_IOBUS->Group[iPort].OUTTGL.reg = pins; }
+inline uint GetPins(uint pins, int iPort)		{ return PORT_IOBUS->Group[iPort].IN.reg & pins; }
 
 // For PORTA and/or PORTB using 64-bit mask
 inline void SetPins(uint64_t pins)
@@ -150,6 +153,19 @@ inline void TogglePins(uint64_t pins)
 		
 	if (pins > 0xFFFFFFFF)
 		TogglePinsB(pins >> 32);
+}
+
+inline uint64_t GetPins(uint64_t pins)
+{
+	uint64_t	res = 0;
+
+	if (pins & 0xFFFFFFFF)
+		res = GetPinsA(pins & 0xFFFFFFFF);
+		
+	if (pins > 0xFFFFFFFF)
+		res |= GetPinsB(pins >> 32);
+
+	return res;
 }
 
 //*********************************************************************
