@@ -40,6 +40,7 @@ typedef	uint8_t			bool;
 #define PACKED_ATTR		__attribute__((packed))
 #define ALIGNED_ATTR(typ)	__attribute__((aligned(sizeof(typ))))
 #define RAMFUNC			__attribute__ ((section(".ramfunc")))
+#define VERSION_INFO	__attribute__ ((section(".version_info")))
 #define _BV(bit)		(1 << (bit))
 #define LOBYTE(w)       ((byte)(w))
 #define HIBYTE(w)       ((byte)((ushort)(w) >> 8))
