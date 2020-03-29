@@ -269,6 +269,7 @@ public:
 	//************************************************************************
 	// These are additional methods
 
+protected:
 	void Init(RxPad padRx, TxPad padTx, int iUsart)
 	{
 		SERCOM_USART_CTRLA_Type	serCtrlA;
@@ -313,6 +314,7 @@ public:
 		GetUsart()->INTENCLR.reg = SERCOM_USART_INTFLAG_RXC | SERCOM_USART_INTFLAG_DRE | SERCOM_USART_INTFLAG_TXC;
 	}
 
+public:
 	uint32_t IsEnabled()
 	{
 		return GetUsart()->CTRLA.reg & SERCOM_USART_CTRLA_ENABLE;
@@ -379,7 +381,8 @@ public:
 
 //****************************************************************************
 
-template <int iUsart, int cbRcvBuf, int cbXmitBuf> class UsartBuf : public UsartBuf_t
+template <int iUsart, int cbRcvBuf, int cbXmitBuf> 
+class UsartBuf : public UsartBuf_t
 {
 public:
 	static const int RcvBufSize = cbRcvBuf - 1;
@@ -435,7 +438,8 @@ protected:
 //****************************************************************************
 // Std I/O
 
-template <class Base, int buf> class StdIo : public Base
+template <class Base, int buf> 
+class StdIo : public Base
 {
 public:
 	void printf(const char *__fmt, ...)
@@ -455,7 +459,8 @@ protected:
 // Half-duplex version
 
 template <int iUsart, int cbRcvBuf, int cbXmitBuf, UsartHalfDuplexDriver_t driverOff,
-	UsartHalfDuplexDriver_t driverOn> class UsartBufHalf : public UsartBuf_t
+	UsartHalfDuplexDriver_t driverOn> 
+class UsartBufHalf : public UsartBuf_t
 {
 public:
 	UsartBufHalf()
