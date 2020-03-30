@@ -31,8 +31,8 @@ protected:
 protected:
 	byte	*m_pbRead;
 	byte	*m_pbWrite;
+	byte	*volatile m_pbLastDma;
 	ushort	m_usReadCnt;
-	ushort	m_usWriteWaiting;
 	byte	m_bChanWrite;
 	byte	m_arbRcvBuf[0];
 
@@ -53,7 +53,7 @@ protected:
 		MCLK->APBCMASK.reg |= MCLK_APBCMASK_SERCOM0 << iUsart;
 
 		// Clock it with GCLK0
-		GCLK->PCHCTRL[SERCOM0_GCLK_ID_CORE + iUsart].reg = GCLK_PCHCTRL_GEN_GCLK0 | 
+		GCLK->PCHCTRL[SERCOM0_GCLK_ID_CORE + iUsart].reg = GCLK_PCHCTRL_GEN_GCLK0 |
 			GCLK_PCHCTRL_CHEN;
 #else
 		// Enable clock
@@ -105,16 +105,16 @@ protected:
 		DMAC->CHID.reg = iWrChan;
 		DMAC->CHCTRLB.reg = DMAC_CHCTRLB_TRIGACT_BEAT | DMAC_CHCTRLB_LVL(2) |
 			DMAC_CHCTRLB_TRIGSRC(SERCOM0_DMAC_ID_TX + iUsart * SERCOM_DMAC_ID_OFFSET);
-		
+
 		// Pipe the event on DMAC to event channel iEvChan
 		// No GCLK needed for asynchronous operation
 		MCLK->APBCMASK.reg |= MCLK_APBCMASK_EVSYS;
-		EVSYS->CHANNEL[iEvChan].reg = EVSYS_CHANNEL_PATH_ASYNCHRONOUS | 
+		EVSYS->CHANNEL[iEvChan].reg = EVSYS_CHANNEL_PATH_ASYNCHRONOUS |
 			EVSYS_CHANNEL_EVGEN(EVSYS_ID_GEN_DMAC_CH_0 + iRdChan);
 
 		m_pbRead = m_arbRcvBuf;
 		m_usReadCnt = 0;
-		m_pbWrite = GetXmitBuf();
+		m_pbLastDma = m_pbWrite = GetXmitBuf();
 	}
 
 	//************************************************************************
@@ -138,7 +138,7 @@ public:
 	void ReadBytes(void *pv, int cb) NO_INLINE_ATTR
 	{
 		byte	*pb;
-		
+
 		pb = (byte *)pv;
 		for ( ; cb > 0; cb--, pb++)
 			*pb = ReadByte();
@@ -168,81 +168,118 @@ public:
 			pb -= GetRcvBufLen();
 		m_pbRead = pb;
 	}
-	
+
 	//************************************************************************
 	// Write Functions
 
-	byte *GetWriteBuf(int cb) NO_INLINE_ATTR
+	void PutByte(byte b) NO_INLINE_ATTR
 	{
-		if (m_pbWrite + cb >= m_pbXmitBufEnd)
-			m_pbWrite = GetXmitBuf();
-		return m_pbWrite;
+		byte	*pb;
+
+		pb = m_pbWrite;
+		*pb++ = b;
+		if (pb >= m_pbXmitBufEnd)
+			pb = GetXmitBuf();
+		m_pbWrite = pb;
 	}
 
-	void SendBytes(int cb) NO_INLINE_ATTR
+	void WriteByte(byte b) NO_INLINE_ATTR
 	{
+		PutByte(b);
+		SendBytes();
+	}
+
+	void SendBytes() NO_INLINE_ATTR
+	{
+		// A different DMA ISR could change the CHID register
+		NVIC_DisableIRQ(DMAC_IRQn);
+
 		DMAC->CHID.reg = m_bChanWrite;
 		if (DMAC->CHCTRLA.bit.ENABLE)
 		{
 			// Have completion interrupt start next transfer
-			// Ensure interrupts are off around changes
-			DMAC->CHINTENCLR.reg = DMAC_CHINTENCLR_TCMPL;
-			m_usWriteWaiting += cb;
-			m_pbWrite += cb;
 			DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL;
-			return;
 		}
-		Dma.Desc[m_bChanWrite].BTCNT.reg = cb;
-		Dma.Desc[m_bChanWrite].SRCADDR.reg = (int)(m_pbWrite += cb);
-		DMAC->CHINTFLAG.reg = DMAC_CHINTFLAG_TCMPL;	// Clear interrupt flag before we start
-		DMAC->CHCTRLA.reg = DMAC_CHCTRLA_ENABLE;
+		else
+			Isr();	// Send what we have so far, up to end of buffer
+
+		NVIC_EnableIRQ(DMAC_IRQn);
+	}
+
+	// Use this after GetWriteBuf() to say how many bytes were written
+	void SendBytes(int cb) NO_INLINE_ATTR
+	{
+		m_pbWrite += cb;
+		SendBytes();
+	}
+
+	byte *GetWriteBuf(int cb) NO_INLINE_ATTR
+	{
+		if (m_pbWrite + cb >= m_pbXmitBufEnd)
+		{
+			// Must wrap to fit buffer.
+			// Wait for current data to start sending.
+			while (m_pbLastDma != m_pbWrite);
+			m_pbLastDma = m_pbWrite = GetXmitBuf();
+		}
+		return m_pbWrite;
 	}
 
 	void WriteBytes(void *pv, int cb) NO_INLINE_ATTR
 	{
 		memcpy(GetWriteBuf(cb), pv, cb);
-		SendBytes(cb);
+		m_pbWrite += cb;
+		SendBytes();
+	}
+
+	void WriteBytes(int cb, ...) NO_INLINE_ATTR
+	{
+		va_list	args;
+		va_start(args, cb);
+		for ( ; cb > 0; cb--)
+			PutByte(va_arg(args, int));
+		va_end(args);
+		SendBytes();
 	}
 
 	void WriteString(const char *psz) NO_INLINE_ATTR
 	{
 		char	ch;
-		int		cb;
-		byte	*pb;
-		const char	*pszCur;
 
-		// First get the length
-		for (pszCur = psz, cb = 0;;)
-		{
-			ch = *pszCur++;
-			if (ch == 0)
-				break;
-			if (ch =='\n')
-				cb++;
-			cb++;
-		}
-
-		// Now copy the characters
-		pb = GetWriteBuf(cb);
 		for (;;)
 		{
 			ch = *psz++;
 			if (ch == 0)
 				break;
-			if (ch =='\n')
-				*pb++ = '\r';
-			*pb++ = ch;
+			if (ch == '\n')
+				PutByte('\r');
+			PutByte(ch);
 		}
-		SendBytes(cb);
+		SendBytes();
 	}
 
 	void Isr()
 	{
+		byte	*pbWrite;
+		byte	*pbLastDma;
+		byte	*pbNextDma;
+
 		DMAC->CHID.reg = m_bChanWrite;
 		DMAC->CHINTENCLR.reg = DMAC_CHINTENCLR_TCMPL;
-		Dma.Desc[m_bChanWrite].BTCNT.reg = m_usWriteWaiting;
-		m_usWriteWaiting = 0;
-		Dma.Desc[m_bChanWrite].SRCADDR.reg = (int)m_pbWrite;
+
+		pbNextDma = pbWrite = m_pbWrite;
+		pbLastDma = m_pbLastDma;
+		// See if write pointer has wrapped
+		if (pbLastDma > pbWrite)
+		{
+			pbWrite = m_pbXmitBufEnd;	// only send to end of buffer
+			pbNextDma = GetXmitBuf();	// pick up at start of buffer
+			// Have more, transfer it on next interrupt
+			DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL;
+		}
+		Dma.Desc[m_bChanWrite].SRCADDR.reg = (int)pbWrite;
+		Dma.Desc[m_bChanWrite].BTCNT.reg = pbWrite - pbLastDma;
+		m_pbLastDma = pbNextDma;
 		DMAC->CHINTFLAG.reg = DMAC_CHINTFLAG_TCMPL;	// Clear interrupt flag before we start
 		DMAC->CHCTRLA.reg = DMAC_CHCTRLA_ENABLE;
 	}

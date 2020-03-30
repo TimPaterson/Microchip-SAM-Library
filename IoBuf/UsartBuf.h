@@ -266,6 +266,15 @@ public:
 			WriteByte(*pb);
 	}
 
+	void WriteBytes(int cb, ...) NO_INLINE_ATTR
+	{
+		va_list	args;
+		va_start(args, cb);
+		for ( ; cb > 0; cb--)
+			WriteByte(va_arg(args, int));
+		va_end(args);
+	}
+
 	//************************************************************************
 	// These are additional methods
 
@@ -438,7 +447,7 @@ protected:
 //****************************************************************************
 // Std I/O
 
-template <class Base, int buf> 
+template <class Base, int cbBuf> 
 class StdIo : public Base
 {
 public:
@@ -446,13 +455,13 @@ public:
 	{
 		va_list	args;
 		va_start(args, __fmt);
-		vsnprintf(m_archPrintBuf, sizeof m_archPrintBuf, __fmt, args);
+		vsnprintf(m_archPrintBuf, cbBuf - 1, __fmt, args);
 		va_end(args);
 		this->WriteString(m_archPrintBuf);
 	}
 
 protected:
-	char m_archPrintBuf[buf];
+	char m_archPrintBuf[cbBuf];
 };
 
 //****************************************************************************
