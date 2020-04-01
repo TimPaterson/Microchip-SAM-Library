@@ -241,6 +241,8 @@ public:
 		WriteByteInline(b);
 	}
 
+	void PutByte(byte b)	{ WriteByte(b); }
+
 	// We need our own WriteString to use our own WriteByte
 	void WriteString(const char *psz) NO_INLINE_ATTR
 	{

@@ -144,12 +144,12 @@ public:
 			*pb = ReadByte();
 	}
 
-	byte Peek()
+	byte PeekByte()
 	{
 		return *m_pbRead;
 	}
 
-	byte Peek(int off) NO_INLINE_ATTR
+	byte PeekByte(int off) NO_INLINE_ATTR
 	{
 		byte	*pb;
 
@@ -163,6 +163,7 @@ public:
 	{
 		byte	*pb;
 
+		m_usReadCnt += cnt;
 		pb = m_pbRead + cnt;
 		if (pb >= m_pbRcvBufEnd)
 			pb -= GetRcvBufLen();
@@ -256,6 +257,12 @@ public:
 			PutByte(ch);
 		}
 		SendBytes();
+	}
+
+	BYTE IsXmitInProgress()
+	{
+		DMAC->CHID.reg = m_bChanWrite;
+		return DMAC->CHCTRLA.reg & DMAC_CHCTRLA_ENABLE;
 	}
 
 	void Isr()
@@ -356,16 +363,12 @@ public:
 			// Finish event routing
 			iEvUser = iTc == 0 ? EVSYS_ID_USER_TCC0_EV_0 : (iTc == 1 ? EVSYS_ID_USER_TCC1_EV_0 : EVSYS_ID_USER_TCC2_EV_0);
 			EVSYS->USER[iEvUser].reg = iEvChan + 1;	// channel n-1 selected
-			// TCC also gets capture event
-			iEvUser = iTc == 0 ? EVSYS_ID_USER_TCC0_MC_0 : (iTc == 1 ? EVSYS_ID_USER_TCC1_MC_0 : EVSYS_ID_USER_TCC2_MC_0);
-			EVSYS->USER[iEvUser].reg = iEvChan + 1;	// channel n-1 selected
 
 			// Set up counter
 			MCLK->APBCMASK.reg |= MCLK_APBCMASK_TCC0 << iTc;
 			GCLK->PCHCTRL[TCC0_GCLK_ID + iTc / 2].reg = GCLK_PCHCTRL_GEN_GCLK0 | GCLK_PCHCTRL_CHEN;
-			TCC_PTR(iTc)->EVCTRL.reg = TCC_EVCTRL_TCEI0 | TCC_EVCTRL_EVACT0_INC | TCC_EVCTRL_MCEI0;
-			TCC_PTR(iTc)->COUNT.reg = 1;	// Preload because capture data is before count
-			TCC_PTR(iTc)->CTRLA.reg = TCC_CTRLA_CPTEN0 | TCC_CTRLA_ENABLE;
+			TCC_PTR(iTc)->EVCTRL.reg = TCC_EVCTRL_TCEI0 | TCC_EVCTRL_EVACT0_INC;
+			TCC_PTR(iTc)->CTRLA.reg = TCC_CTRLA_ENABLE;
 		}
 		else
 		{
@@ -380,7 +383,7 @@ public:
 			// Set up automatic synchronization
 			TC_PTR(iTc)->READREQ.reg = TC_READREQ_RCONT | offsetof(TcCount16, COUNT);
 #endif
-			TC_PTR(iTc)->CTRLA.reg = TC_CTRLA_PRESCSYNC_PRESC | TC_CTRLA_CAPTEN0 | TC_CTRLA_CAPTEN1 | TC_CTRLA_ENABLE;
+			TC_PTR(iTc)->CTRLA.reg = TC_CTRLA_ENABLE;
 		}
 	}
 
@@ -400,21 +403,27 @@ public:
 	ushort BytesCanRead() NO_INLINE_ATTR
 	{
 		if (fIsTcc)
-			return TCC_PTR(iTc)->CC[0].reg - m_usReadCnt;
+		{
+			// Must synchronize first
+			TCC_PTR(iTc)->CTRLBSET.reg = TCC_CTRLBSET_CMD_READSYNC;
+			while (TCC_PTR(iTc)->SYNCBUSY.reg & (TCC_SYNCBUSY_CTRLB | TCC_SYNCBUSY_COUNT));
+			return TCC_PTR(iTc)->COUNT.reg - m_usReadCnt;
+		}
 
 		// Using TC, must read count register
 #ifndef TC_READREQ_OFFSET
 		// Must synchronize first
 		TC_PTR(iTc)->CTRLBSET.reg = TC_CTRLBSET_CMD_READSYNC;
-		while (TC_PTR(iTc)->CTRLBSET.reg != 0);
+		while (TC_PTR(iTc)->SYNCBUSY.reg & (TC_SYNCBUSY_CTRLB | TC_SYNCBUSY_COUNT));
 #endif
 		return TC_PTR(iTc)->COUNT.reg - m_usReadCnt;
 	}
 
-	void DiscardReadBuf()
-	{
-		DmaUsartBase::DiscardReadBuf(BytesCanRead());
-	}
+	bool IsByteReady()			{ return BytesCanRead() != 0; }
+
+	void DiscardReadBuf()		{ DmaUsartBase::DiscardReadBuf(BytesCanRead()); }
+
+	void DiscardReadBuf(int cb)	{ DmaUsartBase::DiscardReadBuf(cb); }
 
 	//************************************************************************
 	// Baud Rate Functions
