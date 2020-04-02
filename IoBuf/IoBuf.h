@@ -22,7 +22,6 @@ public:
 	NO_INLINE_ATTR void WriteString(const char *psz)	{ WriteStringInline(psz); }
 	NO_INLINE_ATTR BYTE ReadByte()						{ return ReadByteInline(); }
 	NO_INLINE_ATTR void ReadBytes(void *pv, int cb)		{ ReadBytesInline(pv, cb); }
-	NO_INLINE_ATTR BYTE ReadByteWdr()					{ return ReadByteWdrInline(); }
 	NO_INLINE_ATTR BYTE PeekByte()						{ return PeekByteInline(); }
 	NO_INLINE_ATTR BYTE PeekByte(int off)				{ return PeekByteInline(off); }
 	NO_INLINE_ATTR int BytesCanWrite()					{ return BytesCanWriteInline(); }
@@ -60,9 +59,15 @@ protected:
 
 	BYTE ReadByteInline()
 	{
-		// Wait for input
-		while (!IsByteReady());
-		return ReturnByte();
+		BYTE	*pb;
+		BYTE	b;
+
+		pb = m_pbNextRcvOut + 1;
+		if (pb == m_pbRcvBufEnd)
+			pb = GetRcvBuf();
+		b = *pb;	// get data from buffer
+		m_pbNextRcvOut = pb;
+		return b;
 	}
 
 	void ReadBytesInline(void *pv, int cb)
@@ -71,14 +76,6 @@ protected:
 		
 		for (pb = (BYTE *)pv; cb > 0; cb--, pb++)
 			*pb = ReadByte();
-	}
-
-	BYTE ReadByteWdrInline()
-	{
-		// Wait for input, reseting watch dog while we wait
-		while (!IsByteReady())
-			wdt_reset();
-		return ReturnByte();
 	}
 
 	BYTE PeekByteInline()
@@ -256,19 +253,6 @@ protected:
 		m_pbXmitBufEnd = GetXmitBuf() + cbXmitBuf;
 	}
 	
-	BYTE ReturnByte()
-	{
-		BYTE	*pb;
-		BYTE	b;
-
-		pb = m_pbNextRcvOut + 1;
-		if (pb == m_pbRcvBufEnd)
-			pb = GetRcvBuf();
-		b = *pb;	// get data from buffer
-		m_pbNextRcvOut = pb;
-		return b;
-	}
-
 	BYTE	*GetRcvBuf()	{return m_arbRcvBuf;}
 	BYTE	*GetXmitBuf()	{return m_pbRcvBufEnd;}
 
