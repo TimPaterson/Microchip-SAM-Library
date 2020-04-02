@@ -55,7 +55,7 @@ typedef	uint8_t			bool;
 
 inline bool CompSign(int s1, int s2)		{ return (s1 ^ s2) >= 0; }
 inline int ShiftIntRnd(int n, int s)		{ return ((n >> (s - 1)) + 1) >> 1; }
-inline int ShiftUintRnd(uint n, int s)		{ return ((n >> (s - 1)) + 1) >> 1; }
+inline uint ShiftUintRnd(uint n, int s)		{ return ((n >> (s - 1)) + 1) >> 1; }
 inline int DivIntByUintRnd(int n, uint d)		
 { 
 	int sgn = n >> (sizeof(n)*8-1);	// 0 or -1
