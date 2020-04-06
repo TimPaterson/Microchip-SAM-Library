@@ -45,7 +45,7 @@ typedef	uint8_t			bool;
 #define LOBYTE(w)       ((byte)(w))
 #define HIBYTE(w)       ((byte)((ushort)(w) >> 8))
 #define DIV_INT_ROUND(x, y)	(((x) + (y) / 2) / (y))	// deprecated name: doesn't work if < 0
-#define DIV_UINT_RND(x, y)	(((x) + (y) / 2) / (y))
+#define DIV_UINT_RND(x, y)	(((x) + (y) / 2) / (y))	// deprecated name: use inline function
 #define CONCAT_(x,y)	x##y
 #define CONCAT(x,y)		CONCAT_(x,y)
 #define CAT3_(x,y,z)	x##y##z
@@ -54,9 +54,12 @@ typedef	uint8_t			bool;
 #define STRINGIFY(x)	STRINGIFY_(x)
 
 inline bool CompSign(int s1, int s2)		{ return (s1 ^ s2) >= 0; }
+
+// Rounded integer division/shifting
 inline int ShiftIntRnd(int n, int s)		{ return ((n >> (s - 1)) + 1) >> 1; }
 inline uint ShiftUintRnd(uint n, int s)		{ return ((n >> (s - 1)) + 1) >> 1; }
-inline int DivIntByUintRnd(int n, uint d)		
+inline uint DivUintRnd(uint n, uint d)		{ return (n + d / 2) / d; }
+inline int DivIntByUintRnd(int n, uint d)
 { 
 	int sgn = n >> (sizeof(n)*8-1);	// 0 or -1
 	return (n + (int)(((d / 2) ^ sgn) - sgn)) / (int)d; 
@@ -66,13 +69,6 @@ inline int DivIntRnd(int n, int d)
 	int rnd = d / 2;
 	return (n + ((n ^ d) < 0 ? -rnd : rnd)) / d; 
 }
-/*
-inline int DivIntRnd(int n, int d)		
-{ 
-	int sgn = (n ^ d) >> (sizeof(n)*8-1);	// 0 or -1
-	return (n + ((d ^ sgn) - sgn) / 2) / d; 
-}
-*/
 
 #ifdef __cplusplus
 #define EXTERN_C extern "C"
