@@ -45,7 +45,7 @@ typedef	uint8_t			bool;
 #define LOBYTE(w)       ((byte)(w))
 #define HIBYTE(w)       ((byte)((ushort)(w) >> 8))
 #define DIV_INT_ROUND(x, y)	(((x) + (y) / 2) / (y))	// deprecated name: doesn't work if < 0
-#define DIV_UINT_RND(x, y)	(((x) + (y) / 2) / (y))	// deprecated name: use inline function
+#define DIV_UINT_RND(x, y)	(((x) + (y) / 2) / (y))	// use this macro in constants
 #define CONCAT_(x,y)	x##y
 #define CONCAT(x,y)		CONCAT_(x,y)
 #define CAT3_(x,y,z)	x##y##z
@@ -58,7 +58,7 @@ inline bool CompSign(int s1, int s2)		{ return (s1 ^ s2) >= 0; }
 // Rounded integer division/shifting
 inline int ShiftIntRnd(int n, int s)		{ return ((n >> (s - 1)) + 1) >> 1; }
 inline uint ShiftUintRnd(uint n, int s)		{ return ((n >> (s - 1)) + 1) >> 1; }
-inline uint DivUintRnd(uint n, uint d)		{ return (n + d / 2) / d; }
+inline uint DivUintRnd(uint n, uint d)		{ return DIV_UINT_RND(n, d); }
 inline int DivIntByUintRnd(int n, uint d)
 { 
 	int sgn = n >> (sizeof(n)*8-1);	// 0 or -1
