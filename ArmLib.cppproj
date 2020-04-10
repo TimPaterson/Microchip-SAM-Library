@@ -186,6 +186,9 @@
     <Compile Include="IoBuf\UsartBuf.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="Math\DecimalToFrac.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="Math\DIVAS.c">
       <SubType>compile</SubType>
     </Compile>
