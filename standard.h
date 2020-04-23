@@ -108,20 +108,49 @@ typedef union
 //*********************************************************************
 // Bit I/O helpers
 
+static constexpr ulong ALL_PORT_PINS = 0xFFFFFFFF;
+
 // For PORTA and PORTB explicitly
-inline void SetPinsA(uint pins)		{ PORT_IOBUS->Group[0].OUTSET.reg = pins; }
-inline void SetPinsB(uint pins)		{ PORT_IOBUS->Group[1].OUTSET.reg = pins; }
-inline void ClearPinsA(uint pins)	{ PORT_IOBUS->Group[0].OUTCLR.reg = pins; }
-inline void ClearPinsB(uint pins)	{ PORT_IOBUS->Group[1].OUTCLR.reg = pins; }
-inline void TogglePinsA(uint pins)	{ PORT_IOBUS->Group[0].OUTTGL.reg = pins; }
-inline void TogglePinsB(uint pins)	{ PORT_IOBUS->Group[1].OUTTGL.reg = pins; }
-inline uint GetPinsA(uint pins)		{ return PORT_IOBUS->Group[0].IN.reg & pins; }
-inline uint GetPinsB(uint pins)		{ return PORT_IOBUS->Group[1].IN.reg & pins; }
+inline void SetPinsA(uint pins)			{ PORT_IOBUS->Group[0].OUTSET.reg = pins; }
+inline void SetPinsB(uint pins)			{ PORT_IOBUS->Group[1].OUTSET.reg = pins; }
+inline void ClearPinsA(uint pins)		{ PORT_IOBUS->Group[0].OUTCLR.reg = pins; }
+inline void ClearPinsB(uint pins)		{ PORT_IOBUS->Group[1].OUTCLR.reg = pins; }
+inline void TogglePinsA(uint pins)		{ PORT_IOBUS->Group[0].OUTTGL.reg = pins; }
+inline void TogglePinsB(uint pins)		{ PORT_IOBUS->Group[1].OUTTGL.reg = pins; }
+inline void WritePinsA(uint pins)		{ PORT_IOBUS->Group[0].OUT.reg = pins; }
+inline void WritePinsB(uint pins)		{ PORT_IOBUS->Group[1].OUT.reg = pins; }
+inline uint GetOutPinsA()				{ return PORT_IOBUS->Group[0].OUT.reg; }
+inline uint GetOutPinsB()				{ return PORT_IOBUS->Group[1].OUT.reg; }
+
+inline void DirOutPinsA(uint pins)		{ PORT_IOBUS->Group[0].DIRSET.reg = pins; }
+inline void DirOutPinsB(uint pins)		{ PORT_IOBUS->Group[1].DIRSET.reg = pins; }
+inline void DirInPinsA(uint pins)		{ PORT_IOBUS->Group[0].DIRCLR.reg = pins; }
+inline void DirInPinsB(uint pins)		{ PORT_IOBUS->Group[1].DIRCLR.reg = pins; }
+inline void DirTglPinsA(uint pins)		{ PORT_IOBUS->Group[0].DIRTGL.reg = pins; }
+inline void DirTglPinsB(uint pins)		{ PORT_IOBUS->Group[1].DIRTGL.reg = pins; }
+inline void DirWritePinsA(uint pins)	{ PORT_IOBUS->Group[0].DIR.reg = pins; }
+inline void DirWritePinsB(uint pins)	{ PORT_IOBUS->Group[1].DIR.reg = pins; }
+inline uint GetDirPinsA()				{ return PORT_IOBUS->Group[0].DIR.reg; }
+inline uint GetDirPinsB()				{ return PORT_IOBUS->Group[1].DIR.reg; }
+
+inline uint GetPinsA(uint pins)			{ return PORT_IOBUS->Group[0].IN.reg & pins; }
+inline uint GetPinsB(uint pins)			{ return PORT_IOBUS->Group[1].IN.reg & pins; }
+inline uint GetPinsA()					{ return PORT_IOBUS->Group[0].IN.reg; }
+inline uint GetPinsB()					{ return PORT_IOBUS->Group[1].IN.reg; }
 
 // For any port using port number (0 = PORTA, etc.)
 inline void SetPins(uint pins, int iPort)		{ PORT_IOBUS->Group[iPort].OUTSET.reg = pins; }
 inline void ClearPins(uint pins, int iPort)		{ PORT_IOBUS->Group[iPort].OUTCLR.reg = pins; }
 inline void TogglePins(uint pins, int iPort)	{ PORT_IOBUS->Group[iPort].OUTTGL.reg = pins; }
+inline void WritePins(uint pins, int iPort)		{ PORT_IOBUS->Group[iPort].OUT.reg = pins; }
+inline uint GetOutPins(int iPort)				{ return PORT_IOBUS->Group[iPort].OUT.reg; }
+
+inline void DirOutPins(uint pins, int iPort)	{ PORT_IOBUS->Group[iPort].DIRSET.reg = pins; }
+inline void DirInPins(uint pins, int iPort)		{ PORT_IOBUS->Group[iPort].DIRCLR.reg = pins; }
+inline void DirTglPins(uint pins, int iPort)	{ PORT_IOBUS->Group[iPort].DIRTGL.reg = pins; }
+inline void DirWritePins(uint pins, int iPort)	{ PORT_IOBUS->Group[iPort].DIR.reg = pins; }
+inline uint GetDirPins(int iPort)				{ return PORT_IOBUS->Group[iPort].DIR.reg; }
+
 inline uint GetPins(uint pins, int iPort)		{ return PORT_IOBUS->Group[iPort].IN.reg & pins; }
 
 // For PORTA and/or PORTB using 64-bit mask
