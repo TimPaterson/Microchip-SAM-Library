@@ -402,21 +402,29 @@ public:
 
 	ushort BytesCanRead() NO_INLINE_ATTR
 	{
+		ushort	cb;
+
 		if (fIsTcc)
 		{
 			// Must synchronize first
 			TCC_PTR(iTc)->CTRLBSET.reg = TCC_CTRLBSET_CMD_READSYNC;
 			while (TCC_PTR(iTc)->SYNCBUSY.reg & (TCC_SYNCBUSY_CTRLB | TCC_SYNCBUSY_COUNT));
-			return TCC_PTR(iTc)->COUNT.reg - m_usReadCnt;
+			cb = TCC_PTR(iTc)->COUNT.reg - m_usReadCnt;
+		}
+		else
+		{
+#ifndef TC_READREQ_OFFSET
+			// Must synchronize first
+			TC_PTR(iTc)->CTRLBSET.reg = TC_CTRLBSET_CMD_READSYNC;
+			while (TC_PTR(iTc)->SYNCBUSY.reg & (TC_SYNCBUSY_CTRLB | TC_SYNCBUSY_COUNT));
+#endif
+			cb = TC_PTR(iTc)->COUNT.reg - m_usReadCnt;
 		}
 
-		// Using TC, must read count register
-#ifndef TC_READREQ_OFFSET
-		// Must synchronize first
-		TC_PTR(iTc)->CTRLBSET.reg = TC_CTRLBSET_CMD_READSYNC;
-		while (TC_PTR(iTc)->SYNCBUSY.reg & (TC_SYNCBUSY_CTRLB | TC_SYNCBUSY_COUNT));
-#endif
-		return TC_PTR(iTc)->COUNT.reg - m_usReadCnt;
+		// Make sure we don't report more bytes than the buffer size
+		while (cb >= cbRcvBuf)
+			cb -= cbRcvBuf;
+		return cb;
 	}
 
 	bool IsByteReady()			{ return BytesCanRead() != 0; }
