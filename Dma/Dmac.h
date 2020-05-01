@@ -51,7 +51,7 @@ public:
 
 	void SetChanIsr(int iChan, Dmac_Isr_t *pfn, void *pv = NULL)
 	{
-		m_arIsr[iChan].isr = (Dmac_Isr_t *)pfn;
+		m_arIsr[iChan].isr = pfn;
 		m_arIsr[iChan].pv = pv;
 	}
 

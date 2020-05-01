@@ -380,6 +380,13 @@ public:
 		return GetUsart()->INTENCLR.reg & SERCOM_USART_INTFLAG_DRE;
 	}
 
+	void StreamInit(FILE *pFile)
+	{
+		union {void (UsartBuf_t::*mf)(byte); _fdev_put_t *p;} u = {&UsartBuf_t::WriteByte};
+		fdev_setup_stream(pFile, u.p, NULL, _FDEV_SETUP_WRITE | _FDEV_SETUP_CRLF);
+		fdev_set_udata(pFile, this);
+	}
+
 	// Write directly to the USART data port. Very fast output,
 	// useful for debugging.
 	void DirectWriteByte(byte b)

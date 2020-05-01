@@ -168,7 +168,6 @@
   <ItemGroup>
     <Folder Include="IoBuf\" />
     <Folder Include="IoBuf\" />
-    <Folder Include="Lib\" />
     <Folder Include="Math" />
     <Folder Include="Dma" />
     <Folder Include="Nvm" />
@@ -211,11 +210,6 @@
     <Compile Include="Util\TimerLib.h">
       <SubType>compile</SubType>
     </Compile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Lib\libstdio-mini.a">
-      <SubType>compile</SubType>
-    </None>
   </ItemGroup>
   <Import Project="$(AVRSTUDIO_EXE_PATH)\\Vs\\Compiler.targets" />
 </Project>
