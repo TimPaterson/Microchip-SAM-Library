@@ -290,8 +290,8 @@ protected:
 		MCLK->APBCMASK.reg |= 1 << (MCLK_APBCMASK_SERCOM0_Pos + iUsart);
 
 		// Clock it with GCLK0
-		GCLK->PCHCTRL[SERCOM0_GCLK_ID_CORE + iUsart].reg = GCLK_PCHCTRL_GEN_GCLK0 | 
-			GCLK_PCHCTRL_CHEN;
+		GCLK->PCHCTRL[(iUsart == 5 ? SERCOM5_GCLK_ID_CORE : SERCOM0_GCLK_ID_CORE + iUsart)].reg = 
+			GCLK_PCHCTRL_GEN_GCLK0 | GCLK_PCHCTRL_CHEN;
 #else
 		// Enable clock
 		PM->APBCMASK.reg |= 1 << (PM_APBCMASK_SERCOM0_Pos + iUsart);
