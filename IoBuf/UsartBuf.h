@@ -41,14 +41,14 @@
 // SERCOM module per the data sheet section "I/O Multiplexing and Considerations".
 // This is done with this function:
 //
-// void SetPortMux(uint uMux, uint uPins, int iPort = 0)
+// void SetPortMux(uint uMux, uint uPins, int iPort)
 // - uMux: mux identifier, one of PORT_MUX_A, PORT_MUX_B, etc
 // - uPins: a bit set for each pin to be affected
 // - iPort: optional port number (0 = PORTA, 1 = PORTB, etc.)
 //
 // Example:
 //
-// SetPortMux(PORT_MUX_C, SerialTxPin | SerialRxPin);
+// SetPortMuxA(PORT_MUX_C, SerialTxPin | SerialRxPin, 0);
 //
 // Typically the SERCOM modules are on mux C and mux D. Each SERCOM module
 // has four pads, and a given combination of mux and pin assign that pin 

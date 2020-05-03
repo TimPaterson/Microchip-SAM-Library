@@ -110,61 +110,6 @@ typedef union
 
 static constexpr ulong ALL_PORT_PINS = 0xFFFFFFFF;
 
-// For PORTA and PORTB explicitly
-// Output
-inline void SetPinsA(uint pins)			{ PORT_IOBUS->Group[0].OUTSET.reg = pins; }
-inline void SetPinsB(uint pins)			{ PORT_IOBUS->Group[1].OUTSET.reg = pins; }
-inline void ClearPinsA(uint pins)		{ PORT_IOBUS->Group[0].OUTCLR.reg = pins; }
-inline void ClearPinsB(uint pins)		{ PORT_IOBUS->Group[1].OUTCLR.reg = pins; }
-inline void TogglePinsA(uint pins)		{ PORT_IOBUS->Group[0].OUTTGL.reg = pins; }
-inline void TogglePinsB(uint pins)		{ PORT_IOBUS->Group[1].OUTTGL.reg = pins; }
-inline void WritePinsA(uint pins)		{ PORT_IOBUS->Group[0].OUT.reg = pins; }
-inline void WritePinsB(uint pins)		{ PORT_IOBUS->Group[1].OUT.reg = pins; }
-inline uint GetOutPinsA()				{ return PORT_IOBUS->Group[0].OUT.reg; }
-inline uint GetOutPinsB()				{ return PORT_IOBUS->Group[1].OUT.reg; }
-
-// Access as type LONG_BYTES above for individual byte access
-#define PortSetA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].OUTSET.reg)
-#define PortSetB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].OUTSET.reg)
-#define PortClearA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].OUTCLR.reg)
-#define PortClearB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].OUTCLR.reg)
-#define PortToggleA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].OUTTGL.reg)
-#define PortToggleB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].OUTTGL.reg)
-#define PortWriteA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].OUT.reg)
-#define PortWriteB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].OUT.reg)
-
-// Direction
-inline void DirOutPinsA(uint pins)		{ PORT_IOBUS->Group[0].DIRSET.reg = pins; }
-inline void DirOutPinsB(uint pins)		{ PORT_IOBUS->Group[1].DIRSET.reg = pins; }
-inline void DirInPinsA(uint pins)		{ PORT_IOBUS->Group[0].DIRCLR.reg = pins; }
-inline void DirInPinsB(uint pins)		{ PORT_IOBUS->Group[1].DIRCLR.reg = pins; }
-inline void DirTglPinsA(uint pins)		{ PORT_IOBUS->Group[0].DIRTGL.reg = pins; }
-inline void DirTglPinsB(uint pins)		{ PORT_IOBUS->Group[1].DIRTGL.reg = pins; }
-inline void DirWritePinsA(uint pins)	{ PORT_IOBUS->Group[0].DIR.reg = pins; }
-inline void DirWritePinsB(uint pins)	{ PORT_IOBUS->Group[1].DIR.reg = pins; }
-inline uint GetDirPinsA()				{ return PORT_IOBUS->Group[0].DIR.reg; }
-inline uint GetDirPinsB()				{ return PORT_IOBUS->Group[1].DIR.reg; }
-
-// Access as type LONG_BYTES above for individual byte access
-#define PortDirOutA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].DIRSET.reg)
-#define PortDirOutB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].DIRSET.reg)
-#define PortDirInA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].DIRCLR.reg)
-#define PortDirInB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].DIRCLR.reg)
-#define PortDirTglA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].DIRTGL.reg)
-#define PortDirTglB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].DIRTGL.reg)
-#define PortDirWriteA	(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].DIR.reg)
-#define PortDirWriteB	(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].DIR.reg)
-
-// Input
-inline uint GetPinsA(uint pins)			{ return PORT_IOBUS->Group[0].IN.reg & pins; }
-inline uint GetPinsB(uint pins)			{ return PORT_IOBUS->Group[1].IN.reg & pins; }
-inline uint GetPinsA()					{ return PORT_IOBUS->Group[0].IN.reg; }
-inline uint GetPinsB()					{ return PORT_IOBUS->Group[1].IN.reg; }
-
-// Access as type LONG_BYTES above for individual byte access
-#define PortInA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].IN.reg)
-#define PortInB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].IN.reg)
-
 // For any port using port number (0 = PORTA, etc.)
 // Output
 inline void SetPins(uint pins, int iPort)		{ PORT_IOBUS->Group[iPort].OUTSET.reg = pins; }
@@ -181,53 +126,68 @@ inline void DirWritePins(uint pins, int iPort)	{ PORT_IOBUS->Group[iPort].DIR.re
 inline uint GetDirPins(int iPort)				{ return PORT_IOBUS->Group[iPort].DIR.reg; }
 
 // Input
+inline uint GetPins(int iPort)					{ return PORT_IOBUS->Group[iPort].IN.reg; }
 inline uint GetPins(uint pins, int iPort)		{ return PORT_IOBUS->Group[iPort].IN.reg & pins; }
 
-// For PORTA and/or PORTB using 64-bit mask
-inline void SetPins(uint64_t pins)
-{
-	if (pins & 0xFFFFFFFF)
-		SetPinsA(pins & 0xFFFFFFFF);
-		
-	if (pins > 0xFFFFFFFF)
-		SetPinsB(pins >> 32);
-}
+// For PORTA and PORTB explicitly
+// Output
+inline void SetPinsA(uint pins)			{ SetPins(pins, 0); }
+inline void SetPinsB(uint pins)			{ SetPins(pins, 1); }
+inline void ClearPinsA(uint pins)		{ ClearPins(pins, 0); }
+inline void ClearPinsB(uint pins)		{ ClearPins(pins, 1); }
+inline void TogglePinsA(uint pins)		{ TogglePins(pins, 0); }
+inline void TogglePinsB(uint pins)		{ TogglePins(pins, 1); }
+inline void WritePinsA(uint pins)		{ WritePins(pins, 0); }
+inline void WritePinsB(uint pins)		{ WritePins(pins, 1); }
+inline uint GetOutPinsA()				{ return GetOutPins(0); }
+inline uint GetOutPinsB()				{ return GetOutPins(1); }
 
-inline void ClearPins(uint64_t pins)
-{
-	if (pins & 0xFFFFFFFF)
-		ClearPinsA(pins & 0xFFFFFFFF);
-		
-	if (pins > 0xFFFFFFFF)
-		ClearPinsB(pins >> 32);
-}
+// Access as type LONG_BYTES above for individual byte access
+#define PortSetA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].OUTSET.reg)
+#define PortSetB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].OUTSET.reg)
+#define PortClearA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].OUTCLR.reg)
+#define PortClearB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].OUTCLR.reg)
+#define PortToggleA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].OUTTGL.reg)
+#define PortToggleB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].OUTTGL.reg)
+#define PortWriteA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].OUT.reg)
+#define PortWriteB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].OUT.reg)
 
-inline void TogglePins(uint64_t pins)
-{
-	if (pins & 0xFFFFFFFF)
-		TogglePinsA(pins & 0xFFFFFFFF);
-		
-	if (pins > 0xFFFFFFFF)
-		TogglePinsB(pins >> 32);
-}
+// Direction
+inline void DirOutPinsA(uint pins)		{ DirOutPins(pins, 0); }
+inline void DirOutPinsB(uint pins)		{ DirOutPins(pins, 1); }
+inline void DirInPinsA(uint pins)		{ DirInPins(pins, 0); }
+inline void DirInPinsB(uint pins)		{ DirInPins(pins, 1); }
+inline void DirTglPinsA(uint pins)		{ DirTglPins(pins, 0); }
+inline void DirTglPinsB(uint pins)		{ DirTglPins(pins, 1); }
+inline void DirWritePinsA(uint pins)	{ DirWritePins(pins, 0); }
+inline void DirWritePinsB(uint pins)	{ DirWritePins(pins, 1); }
+inline uint GetDirPinsA()				{ return GetDirPins(0); }
+inline uint GetDirPinsB()				{ return GetDirPins(1); }
 
-inline uint64_t GetPins(uint64_t pins)
-{
-	uint64_t	res = 0;
+// Access as type LONG_BYTES above for individual byte access
+#define PortDirOutA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].DIRSET.reg)
+#define PortDirOutB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].DIRSET.reg)
+#define PortDirInA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].DIRCLR.reg)
+#define PortDirInB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].DIRCLR.reg)
+#define PortDirTglA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].DIRTGL.reg)
+#define PortDirTglB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].DIRTGL.reg)
+#define PortDirWriteA	(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].DIR.reg)
+#define PortDirWriteB	(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].DIR.reg)
 
-	if (pins & 0xFFFFFFFF)
-		res = GetPinsA(pins & 0xFFFFFFFF);
-		
-	if (pins > 0xFFFFFFFF)
-		res |= GetPinsB(pins >> 32);
+// Input
+inline uint GetPinsA(uint pins)			{ return GetPins(pins, 0); }
+inline uint GetPinsB(uint pins)			{ return GetPins(pins, 1); }
+inline uint GetPinsA()					{ return GetPins(0); }
+inline uint GetPinsB()					{ return GetPins(1); }
 
-	return res;
-}
+// Access as type LONG_BYTES above for individual byte access
+#define PortInA		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[0].IN.reg)
+#define PortInB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].IN.reg)
 
 //*********************************************************************
 // Helpers to set up port configuration
 
-inline void SetPortConfig(uint uConfig, uint uPins, int iPort = 0)
+inline void SetPortConfig(uint uConfig, uint uPins, int iPort)
 {
 	if (uPins & 0xFFFF)
 	{
@@ -252,7 +212,7 @@ inline void SetPortConfig(uint uConfig, uint uPins, int iPort = 0)
 inline void SetPortConfigA(uint uConfig, uint uPins) { SetPortConfig(uConfig, uPins, 0); }
 inline void SetPortConfigB(uint uConfig, uint uPins) { SetPortConfig(uConfig, uPins, 1); }
 
-inline void SetPortMux(uint uMux, uint uPins, int iPort = 0)
+inline void SetPortMux(uint uMux, uint uPins, int iPort)
 {
 	SetPortConfig(		
 		PORT_WRCONFIG_WRPMUX |
