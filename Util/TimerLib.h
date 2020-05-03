@@ -16,12 +16,20 @@
 #endif
 
 
-class Timer
+template <ulong TimerClockFreq, Timer_t (*GetTickCount)(), ulong CpuFreq
+#ifdef F_CPU
+ = F_CPU
+ #endif
+ >
+class Define_Timer
 {
+	static constexpr uint ClocksPerLoop = 3;
+	static constexpr uint LoopBaseClocks = 3;
+
 public:
 	INLINE_ATTR static void Delay(double sec)
 	{
-		Timer	tmr;
+		Define_Timer	tmr;
 		
 		tmr.Start();
 		while (!tmr.CheckDelay(sec));
@@ -29,7 +37,7 @@ public:
 	
 	INLINE_ATTR static void Delay_us(double us)
 	{
-		Timer	tmr;
+		Define_Timer	tmr;
 		
 		tmr.Start();
 		while (!tmr.CheckDelay_us(us));
@@ -37,11 +45,15 @@ public:
 	
 	INLINE_ATTR static void Delay_ms(double ms)
 	{
-		Timer	tmr;
+		Define_Timer	tmr;
 		
 		tmr.Start();
 		while (!tmr.CheckDelay_ms(ms));
 	}
+
+public:
+	INLINE_ATTR static void ShortDelay_ns(double ns)	{ DelayLoop(LoopsFromNs(ns)); }
+	INLINE_ATTR static void ShortDelay_us(double us)	{ DelayLoop(LoopsFromUs(us)); }
 	
 public:
 	INLINE_ATTR Timer_t Start()						{ return m_uLastTime = GetTickCount(); }
@@ -132,8 +144,31 @@ public:
 	INLINE_ATTR static Timer_t TicksFromFreq(double f)	{ return lround(TimerClockFreq / f); }
 
 	// Integer versions suitable for use at runtime
-	INLINE_ATTR static Timer_t TicksFromFreq(uint f)	{ return DIV_UINT_RND((uint)lround(TimerClockFreq), f); }
+	INLINE_ATTR static Timer_t TicksFromUs(uint us)		{ return DIV_UINT_RND(us * TimerClockFreq, 1000000); }
+	INLINE_ATTR static Timer_t TicksFromUs(int us)		{ return TicksFromUs((uint)us); }
+	INLINE_ATTR static Timer_t TicksFromMs(uint ms)		{ return DIV_UINT_RND(ms * TimerClockFreq, 1000); }
+	INLINE_ATTR static Timer_t TicksFromMs(int ms)		{ return TicksFromMs((uint)ms); }
+	INLINE_ATTR static Timer_t TicksFromFreq(uint f)	{ return DIV_UINT_RND(TimerClockFreq, f); }
 	INLINE_ATTR static Timer_t TicksFromFreq(int f)		{ return TicksFromFreq((uint)f); }
+
+	// Calculate loop count for short delays
+	INLINE_ATTR static ulong LoopsFromNs(double ns)
+	{
+		// Take ceiling on clock counts
+		ulong c = (ulong)((ns * CpuFreq + 1E9 - 1) / 1E9);
+		// and ceiling on loop counts
+		c = (c - LoopBaseClocks + ClocksPerLoop - 1) / ClocksPerLoop;
+		return c;
+	}
+		
+	INLINE_ATTR static ulong LoopsFromUs(double us)
+	{
+		// Take ceiling on clock counts
+		ulong c = (ulong)((us * CpuFreq + 1E6 - 1) / 1E6);
+		// and ceiling on loop counts
+		c = (c - LoopBaseClocks + ClocksPerLoop - 1) / ClocksPerLoop;
+		return c;
+	}
 		
 public:
 	// Get the interval so far
@@ -208,6 +243,19 @@ public:
 		return false;
 	}
 	
+protected:
+	INLINE_ATTR static void DelayLoop(ulong clocks)
+	{
+		if (clocks != 0)
+		{
+			asm volatile
+			(
+			"1:	 sub	%[cnt], #1\n\t"
+				"bne	1b"
+			: [cnt] "=l" (clocks) : "0" (clocks) );
+		}
+	}
+
 protected:
 	Timer_t	m_uLastTime;	
 };

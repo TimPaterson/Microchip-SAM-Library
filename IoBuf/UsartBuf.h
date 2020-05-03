@@ -283,6 +283,7 @@ public:
 protected:
 	void Init(RxPad padRx, TxPad padTx, int iUsart)
 	{
+		int		iGclkId;
 		SERCOM_USART_CTRLA_Type	serCtrlA;
 
 #if	defined(GCLK_PCHCTRL_GEN_GCLK0)
@@ -290,8 +291,12 @@ protected:
 		MCLK->APBCMASK.reg |= 1 << (MCLK_APBCMASK_SERCOM0_Pos + iUsart);
 
 		// Clock it with GCLK0
-		GCLK->PCHCTRL[(iUsart == 5 ? SERCOM5_GCLK_ID_CORE : SERCOM0_GCLK_ID_CORE + iUsart)].reg = 
-			GCLK_PCHCTRL_GEN_GCLK0 | GCLK_PCHCTRL_CHEN;
+#ifdef SERCOM5_GCLK_ID_CORE
+		iGclkId  = iUsart == 5 ? SERCOM5_GCLK_ID_CORE : SERCOM0_GCLK_ID_CORE + iUsart;
+#else
+		iGclkId  = SERCOM0_GCLK_ID_CORE + iUsart;
+#endif
+		GCLK->PCHCTRL[iGclkId].reg = GCLK_PCHCTRL_GEN_GCLK0 | GCLK_PCHCTRL_CHEN;
 #else
 		// Enable clock
 		PM->APBCMASK.reg |= 1 << (PM_APBCMASK_SERCOM0_Pos + iUsart);
