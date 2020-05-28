@@ -252,7 +252,7 @@ protected:
 			(
 			"1:	 sub	%[cnt], #1\n\t"
 				"bne	1b"
-			: [cnt] "=l" (clocks) : "0" (clocks) );
+			: [cnt] "+l" (clocks) );
 		}
 	}
 

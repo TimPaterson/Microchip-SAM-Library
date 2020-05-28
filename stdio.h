@@ -238,11 +238,17 @@
  typedef int  _fdev_get_t(void *);
 
 struct __file {
-	char		*buf;		/* buffer pointer */
-	_fdev_put_t *put;		/* function to write one char to device */
-	_fdev_get_t	*get;		/* function to read one char from device */
+	union {
+		struct {
+			_fdev_put_t *put;		/* function to write one char to device */
+			_fdev_get_t	*get;		/* function to read one char from device */
+		} dev;
+		struct {
+			char		*buf;		/* buffer pointer */
+			int			size;		/* size of buffer */
+		} mem;
+	} u;
 	void		*udata;		/* User defined and accessible data. */
-	int			size;		/* size of buffer */
 	int			len;		/* characters read or written so far */
 	uint8_t		flags;		/* flags, see below */
 	unsigned char unget;	/* ungetc() buffer */
@@ -281,17 +287,6 @@ typedef struct __file FILE;
    will be assigned to both, \c stdin, and \c stderr.
 */
 #define stdout (__iob[1])
-
-/**
-   Stream destined for error output.  Unless specifically assigned,
-   identical to \c stdout.
-
-   If \c stderr should point to another stream, the result of
-   another \c fdevopen() must be explicitly assigned to it without
-   closing the previous \c stderr (since this would also close
-   \c stdout).
-*/
-#define stderr (__iob[2])
 
 /**
    \c EOF declares the value that is returned by various standard IO
@@ -336,8 +331,8 @@ typedef struct __file FILE;
 #else  /* !DOXYGEN */
 #define fdev_setup_stream(stream, p, g, f) \
 	do { \
-		(stream)->put = p; \
-		(stream)->get = g; \
+		(stream)->u.dev.put = p; \
+		(stream)->u.dev.get = g; \
 		(stream)->flags = f; \
 	} while(0)
 #endif /* DOXYGEN */
@@ -381,19 +376,30 @@ typedef struct __file FILE;
 /**
    \brief Macro to allow passing a float to variadic functions without promotion to double
 
+	Type float is passed to a variadic function by making the compiler think
+	it's a long int. This requires a union. Here is an example:
+
+	union {uint32_t l; float f;} u;
+	u.f = float_val;
+	printf("%f", u.l);
+
    Example: <tt>printf("%f", PASS_FLOAT(f));</tt>
  */
 #define PASS_FLOAT(val)
 #endif
 
 #else  /* !DOXYGEN */
-#define FDEV_SETUP_STREAM(p, g, f) { 0, p, g, 0, 0, 0, f }
-#define FDEV_SETUP_STREAM_UDATA(p, g, f, u) { 0, p, g, u, 0, 0, f }
+#define FDEV_SETUP_STREAM(p, g, f) { {{p, g}}, 0, 0, f }
+#define FDEV_SETUP_STREAM_UDATA(p, g, f, u) { {{p, g}}, u, 0, f }
 
 #define FDEV_STANDARD_STREAMS(out, in) FILE *__iob[] = { in, out }
 
 #ifdef __GNUC__
+#if FP_MATH_LEVEL == FP_MATH_FLT
 #define PASS_FLOAT(val)	(__extension__({union {uint32_t l; float f;} __u; __u.f = val; __u.l;}))
+#else
+#define PASS_FLOAT(val)	val
+#endif
 #endif
 
 #endif /* DOXYGEN */
@@ -829,6 +835,15 @@ static inline int fflush(FILE *stream __attribute__((unused)))
 	return 0;
 }
 #endif
+
+//*********************************************************************
+// These have been added to stdio (normally in stdlib) to leverage
+// the string-to-numeric conversions for the scanf family.
+
+extern double strtod(const char *psz, char **ppend);
+extern float strtof(const char *psz, char **ppend);
+extern double atof(const char *psz);
+
 
 #ifdef __cplusplus
 }
