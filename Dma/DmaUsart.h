@@ -195,14 +195,17 @@ public:
 		// A different DMA ISR could change the CHID register
 		NVIC_DisableIRQ(DMAC_IRQn);
 
-		DMAC->CHID.reg = m_bChanWrite;
-		if (DMAC->CHCTRLA.bit.ENABLE)
+		if (m_pbLastDma != m_pbWrite)
 		{
-			// Have completion interrupt start next transfer
-			DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL;
+			DMAC->CHID.reg = m_bChanWrite;
+			if (DMAC->CHCTRLA.bit.ENABLE)
+			{
+				// Have completion interrupt start next transfer
+				DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL;
+			}
+			else
+				Isr();	// Send what we have so far, up to end of buffer
 		}
-		else
-			Isr();	// Send what we have so far, up to end of buffer
 
 		NVIC_EnableIRQ(DMAC_IRQn);
 	}
@@ -220,6 +223,7 @@ public:
 		{
 			// Must wrap to fit buffer.
 			// Wait for current data to start sending.
+			SendBytes();
 			while (m_pbLastDma != m_pbWrite);
 			m_pbLastDma = m_pbWrite = GetXmitBuf();
 		}
