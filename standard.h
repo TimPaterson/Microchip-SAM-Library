@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <stdbool.h>
 
 // Standard data types
 typedef	uint8_t			byte;
@@ -24,9 +25,6 @@ typedef unsigned long	ulong;
 typedef	uint8_t			BYTE;
 typedef	int8_t			SBYTE;
 typedef wchar_t			WCHAR;
-#ifndef __cplusplus
-typedef	uint8_t			bool;
-#endif
 
 // Common macros
 #ifndef _countof
