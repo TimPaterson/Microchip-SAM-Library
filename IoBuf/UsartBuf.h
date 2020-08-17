@@ -283,10 +283,11 @@ public:
 protected:
 	void Init(RxPad padRx, TxPad padTx, int iUsart)
 	{
-		int		iGclkId;
 		SERCOM_USART_CTRLA_Type	serCtrlA;
 
 #if	defined(GCLK_PCHCTRL_GEN_GCLK0)
+		int		iGclkId;
+
 		// Enable clock
 		MCLK->APBCMASK.reg |= 1 << (MCLK_APBCMASK_SERCOM0_Pos + iUsart);
 
