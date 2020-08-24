@@ -171,6 +171,10 @@
     <Folder Include="Math" />
     <Folder Include="Dma" />
     <Folder Include="Nvm" />
+    <Folder Include="Usb\" />
+    <Folder Include="Usb\Device\" />
+    <Folder Include="Usb\Device\FT232" />
+    <Folder Include="Usb\Host\" />
     <Folder Include="Util" />
   </ItemGroup>
   <ItemGroup>
@@ -202,6 +206,27 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="stdio.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Usb\Cdc.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Usb\Device\FT232\FT232.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Usb\Device\FT232\FT232Def.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Usb\Device\SamUsbDevice.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Usb\Device\UsbDevice.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Usb\Usb.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Usb\UsbCtrl.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Util\TimerLib.h">
