@@ -73,3 +73,12 @@ struct NvmSofwareCal_t
 #define NVM_SOFTWARE_CAL	((NvmSofwareCal_t *)NVMCTRL_OTP4)
 
 #endif
+
+//*********************************************************************
+// Define serial number location
+
+#define	NVM_SERIAL_NUMBER_0		((uint32_t *)0x0080A00C)
+#define	NVM_SERIAL_NUMBER_1		((uint32_t *)0x0080A040)
+#define	NVM_SERIAL_NUMBER_2		((uint32_t *)0x0080A044)
+#define	NVM_SERIAL_NUMBER_3		((uint32_t *)0x0080A048)
+

@@ -11,7 +11,7 @@
 #define USB_DEV_Device		0x0600
 #define USB_DEV_VendorStr	"FTDI"
 #define USB_DEV_ProductStr	"FT232R USB UART"
-#define USB_DEV_SerialNo	"AC00AAAA"
+#define USB_DEV_SerialNo	// defining it means GetSerialStrDesc() implemented
 #define USB_DEV_NumConfigs	1
 
 //****************************************************************************

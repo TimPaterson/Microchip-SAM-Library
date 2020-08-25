@@ -1,7 +1,7 @@
 #pragma once
 
 #include "FT232Def.h"
-#include <Usb/Device/UsbDevice.h>
+#include <Usb/Device/USBdevice.h>
 
 
 #define FTDI_IN_ENDPOINT		1
@@ -93,7 +93,7 @@ protected:
 	};
 
 	//*********************************************************************
-	// Implementation of callbacks to USBdevice
+	// Implementation of callbacks from USBdevice class
 	//*********************************************************************
 
 public:
@@ -134,7 +134,8 @@ public:
 		int		cCur;
 		int		wTmp;
 		ushort	*pus;
-		const SetupDataSrc *pSrc;
+		const StringDesc	*pStr;
+		const SetupDataSrc	*pSrc;
 
 		switch (pSetup->bmRequestType)
 		{
@@ -157,15 +158,27 @@ public:
 				break;
 
 			case 0x90:
-				// Get low byte of wIndex
 				cCur = pSetup->wIndex;
 				pSrc = arSrc;
 				for (;;)
 				{
 					cSrc = pSrc->cb;
-					if (cCur < cSrc)
+					if (cSrc == 0)
+					{
+						pStr = GetSerialStrDesc();
+						cSrc = pStr->desc.bLength / 2;
+						if (cCur < cSrc)
+						{
+							pus = (ushort *)pStr;
+							wTmp = *(pus + cCur);
+							goto SendBytes;
+						}
+					}
+					else if (cCur < cSrc)
 						break;
 					pSrc++;
+					if (pSrc >= &arSrc[_countof(arSrc)])
+						return false;
 					cCur -= cSrc;
 				}
 
@@ -174,7 +187,7 @@ public:
 					wTmp = 0;
 				else
 					wTmp = *(pus + cCur);
-
+SendBytes:
 				pus = (ushort *)GetSetupBuf();
 				*pus = wTmp;
 				break;
@@ -244,7 +257,7 @@ protected:
 		{ _countof(arusSetupData1), arusSetupData1 },
 		{ VendorStr.desc.bLength / 2, (ushort *)&VendorStr },
 		{ ProductStr.desc.bLength / 2, (ushort *)&ProductStr },
-		{ SerialStr.desc.bLength / 2, (ushort *)&SerialStr },
+		{ 0, NULL },	// Zero length indicates Serial Number
 		{ _countof(arusSetupData2), arusSetupData2 },
 		{ 19, NULL },
 		{ _countof(arusSetupData3), arusSetupData3 },
@@ -260,7 +273,7 @@ protected:
 };
 
 //****************************************************************************
-// Callbacks for USBdevice
+// Callbacks from USBdevice class
 //****************************************************************************
 
 inline void USBdevice::DeviceConfigured()

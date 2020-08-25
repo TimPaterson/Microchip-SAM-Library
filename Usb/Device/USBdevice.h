@@ -28,6 +28,66 @@ constexpr int max(int a, int b) { return a > b ? a : b; }
 class USBdevice : public UsbCtrl
 {
 	//*********************************************************************
+	// Local Types
+	//*********************************************************************
+
+protected:
+	//*************************************************************************
+	// Count number of endpoints
+
+	#define ENDPOINT_IN(ep, trans, size, interval)	EPINCNT_##ep,
+	#define ENDPOINT_OUT(ep, trans, size, interval)	EPOUTCNT_##ep,
+
+	enum EndpointCountList
+	{
+		ENDPOINT_LIST
+		EndpointCount	// reflects no. of elements in ENDPOINT_LIST
+	};
+	#undef ENDPOINT_IN
+	#undef ENDPOINT_OUT
+
+	//*************************************************************************
+	// Declare the entire configuration description & its children
+
+	struct UsbConfig
+	{
+		UsbConfigDesc		config;
+		UsbInterfaceDesc	iface;
+		UsbEndpointDesc		arEp[EndpointCount];
+	};
+
+	//*************************************************************************
+	// Standardize some string descriptor indices
+
+	enum StringDescIndex
+	{
+		USBSTR_LangId,
+		USBSTR_Vendor,
+		USBSTR_Product,
+#ifdef USB_DEV_SerialNo
+		USBSTR_SerialNo
+#endif
+	};
+
+	//*************************************************************************
+	// This structure is used for the serial number, if present
+
+	struct StringDesc
+	{
+		UsbStringDesc	desc;
+		char16_t		str[];
+	};
+
+	//*************************************************************************
+	// Internal structure
+
+	struct EndpointSize
+	{
+		byte	Bank0;
+		byte	Bank1;
+	};
+
+	//*********************************************************************
 	// These are callbacks implemented in customized code
 	//*********************************************************************
 
@@ -37,6 +97,9 @@ protected:
 	static void TxDataRequest(int iEp);
 	static void TxDataSent(int iEp);
 	static bool NonStandardSetup(UsbSetupPacket *pSetup);
+#ifdef USB_DEV_SerialNo
+	static const StringDesc *GetSerialStrDesc();
+#endif
 #ifdef USB_SOF_INT
 	static void StartOfFrame();
 #endif
@@ -102,7 +165,7 @@ protected:
 
 	static void AckControlPacket()			{ SendToHost(0, NULL, 0); }
 
-	static void SendControlPacket(int cb)
+	static void SendControlPacket(int cb) NO_INLINE_ATTR
 	{
 		// Tell USB we're ready to receive handshake packet on Bank 0
 		USB->DEVICE.DeviceEndpoint[0].EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_BK0RDY;
@@ -168,55 +231,6 @@ protected:
 			USB_DEVICE_PCKSIZE_SIZE(arEpSize[iEp].Bank0);
 		USB->DEVICE.DeviceEndpoint[iEp].EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_BK0RDY;
 	}
-
-	//*********************************************************************
-	// Local Types
-	//*********************************************************************
-
-protected:
-	//*************************************************************************
-	// Count number of endpoints
-
-	#define ENDPOINT_IN(ep, trans, size, interval)	EPINCNT_##ep,
-	#define ENDPOINT_OUT(ep, trans, size, interval)	EPOUTCNT_##ep,
-
-	enum EndpointCountList
-	{
-		ENDPOINT_LIST
-		EndpointCount	// reflects no. of elements in ENDPOINT_LIST
-	};
-	#undef ENDPOINT_IN
-	#undef ENDPOINT_OUT
-
-	//*************************************************************************
-	// Declare the entire configuration description & its children
-
-	struct UsbConfig
-	{
-		UsbConfigDesc		config;
-		UsbInterfaceDesc	iface;
-		UsbEndpointDesc		arEp[EndpointCount];
-	};
-
-	//*************************************************************************
-	// Standardize some string descriptor indices
-
-	enum StringDescIndex
-	{
-		USBSTR_LangId,
-		USBSTR_Vendor,
-		USBSTR_Product,
-		USBSTR_SerialNo
-	};
-
-	//*************************************************************************
-	// Standardize some string descriptor indices
-
-	struct EndpointSize
-	{
-		byte	Bank0;
-		byte	Bank1;
-	};
 
 	//*********************************************************************
 	// Interrupt service routines
@@ -463,6 +477,14 @@ protected:
 							cbAvail = ((UsbStringDesc *)pv)->bLength;
 							break;
 						}
+#ifdef USB_DEV_SerialNo
+						else if (pSetup->bDescIndex == USBSTR_SerialNo)
+						{
+							pv = GetSerialStrDesc();
+							cbAvail = ((UsbStringDesc *)pv)->bLength;
+							break;
+						}
+#endif
 						goto BadRequest;
 
 					default:
@@ -606,26 +628,18 @@ protected:
 	//****************************************************************************
 	// String descriptors
 
-#define STRING16(str)	u##str	// Give string literal 16-bit characters
+#define STRING16(str)	CONCAT(u, str)	// Give string literal 16-bit characters
 
 	// Descriptor 0 had Lang ID
-	inline const static struct LangIdDesc
-	{
-		UsbStringDesc	desc;
-		ushort			lang;
-	} LangId =
+	inline const static StringDesc LangId =
 	{
 		{sizeof(UsbStringDesc) + sizeof(ushort), USBDESC_String},
-		0x0409	// English only
+		{(char16_t)0x0409}	// English only
 	};
 
 	// Define string descriptors
 	#define DEF_STR_DESC(name, string)			\
-	inline const static struct name##Desc		\
-	{											\
-		UsbStringDesc	desc;					\
-		const char16_t	str[];					\
-	} name =									\
+	inline const static StringDesc name =		\
 	{											\
 		{sizeof(UsbStringDesc) + sizeof(STRING16(string)) - sizeof(char16_t), \
 			USBDESC_String},					\
@@ -634,19 +648,13 @@ protected:
 
 	DEF_STR_DESC(VendorStr, USB_DEV_VendorStr);
 	DEF_STR_DESC(ProductStr, USB_DEV_ProductStr);
-	#ifdef USB_DEV_SerialNo
-	DEF_STR_DESC(SerialStr, USB_DEV_SerialNo);
-	#endif
 
 	// Build table of pointers to string descriptors
-	inline const static UsbStringDesc* const arpStrDesc[] =
+	inline const static StringDesc* const arpStrDesc[] =
 	{
-		&LangId.desc,
-		&VendorStr.desc,
-		&ProductStr.desc,
-	#ifdef USB_DEV_SerialNo
-		&SerialStr.desc,
-	#endif
+		&LangId,
+		&VendorStr,
+		&ProductStr,
 	};
 
 	//*********************************************************************
