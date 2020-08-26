@@ -1,5 +1,4 @@
 #pragma once
-#pragma pack(push, 1)
 
 //****************************************************************************
 // USB Version definition
@@ -89,7 +88,13 @@ struct UsbSetupPacket
 
 //****************************************************************************
 // Structure definitions for USB descriptors
+//
+// To ensure descriptors are packed end-to-end regardless of size and
+// alignment, set structure packing to byte alignment
+//
 //****************************************************************************
+
+#pragma pack(push, 1)
 
 enum UsbDescType
 {

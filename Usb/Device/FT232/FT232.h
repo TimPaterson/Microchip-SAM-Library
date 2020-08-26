@@ -4,10 +4,9 @@
 #include <Usb/Device/USBdevice.h>
 
 
-#define FTDI_IN_ENDPOINT		1
-#define FTDI_OUT_ENDPOINT		2
-#define FTDI_BUFFER_SEED		USB_DEV_Product
-#define FTDI_BUFFER_SEED_SIZE	2
+#define FTDI_IN_ENDPOINT	1
+#define FTDI_OUT_ENDPOINT	2
+#define FTDI_STATUS_SIZE	2
 
 //****************************************************************************
 // FT232 Serial-to-USB converter
@@ -17,54 +16,191 @@
 class FT232 : public USBdevice
 {
 	//*********************************************************************
-	// These are callbacks implemented in customized code
+	// Public Types
+	//*********************************************************************
+
+public:
+	//*************************************************************************
+	// Flags for GetPinStatus() / SetPinStatus()
+
+	enum PinStatusBits
+	{
+		STAT_None,
+
+		// Outputs, the first two mapped the same as FTDI_MODEM_CTRL
+		STAT_DTR = 0x01,
+		STAT_RTS = 0x02,
+		STAT_Modem = STAT_DTR | STAT_RTS,
+		STAT_Break = 0x04,
+		STAT_Outputs = STAT_Modem | STAT_Break,
+
+		// Inputs, mapped the same as returned by FTDI_GET_MODEM_STATUS
+		STAT_CTS = 0x10,
+		STAT_DSR = 0x20,
+		STAT_RI  = 0x40,
+		STAT_DCD = 0x80,
+		STAT_Inputs = STAT_CTS | STAT_DSR | STAT_RI | STAT_DCD,
+	};
+
+	//*********************************************************************
+	// Local Types
 	//*********************************************************************
 
 protected:
+	static constexpr int InBufSize = FTDI_OUT_BUF_SIZE;	// host to device
+	static constexpr int OutBufSize = FTDI_IN_BUF_SIZE - 1;	// device to host
+
+	//*************************************************************************
+	// USB vendor-specific control requests
+
+	enum FtdiRequest
+	{
+		FTDI_RESET,				// Reset the port
+		FTDI_MODEM_CTRL,		// Set the modem control register
+		FTDI_SET_FLOW_CTRL,		// Set flow control options
+		FTDI_SET_BAUD_RATE,		// Set the baud rate
+		FTDI_SET_DATA,			// Set the data characteristics of the port
+		FTDI_GET_MODEM_STATUS,	// Retrieve current value of modem status register
+		FTDI_SET_EVENT_CHAR,	// Set the event character
+		FTDI_SET_ERROR_CHAR,	// Set the error character
+		FT_SET_LATENCY_TIMER,	// Set the latency timer
+		FT_GET_LATENCY_TIMER,	// Return the latency timer
+		FT_SET_BIT_MODE,		// Set special bit mode or turn on a special function
+		FT_GET_BIT_MODE			// Return the current values on the DBUS pins
+	};
+
+	// Upper byte of Set Data
+	#define FTDI_Parity_Pos		0
+	#define FTDI_Parity_Msk		0x07
+	#define FTDI_StopBits_Pos	3
+	#define FTDI_StopBits_Msk	0x07
+	#define FTDI_SendBreak_Pos	6
+	#define FTDI_SendBreak_Msk	1
+	#define FTDI_SendBreak		(FTDI_SendBreak_Msk << FTDI_SendBreak_Pos)
+
+	#define FTDI_LINE_STATUS		0x60
+	#define FTDI_MODEM_STATUS_BASE	0x01
+
+	//*************************************************************************
+	// Flags for StateChange callback
+
+	enum PortChange
+	{
+		PC_None,
+		PC_BaudRate,
+		PC_PinStatus,
+	};
+
+	//*********************************************************************
+	// These are callbacks implemented in customized code
+	//*********************************************************************
+
+	// These callback occur from the ISR, so don't dawdle...
+protected:
 	static void RxData(void *pv, int cb);
+	static void StateChange(int flags);
 
 	//*********************************************************************
 	// Public interface
 	//*********************************************************************
 
+	// To send data to the host, use TxData() or TxByte(). These fill a
+	// buffer equal to the USB packet size (64 bytes) and send it when it's
+	// full.
+	//
+	// Of course for normal small transmissions you don't want to wait
+	// for the buffer to fill. To emulate normal FT232 behavior, the main
+	// loop should call Process(). It will send the buffer every 1 ms.
+	//
+	// If your transmissions are packet oriented, or you prefer a different
+	// latency interval, you can all SendBuffer() whenever you want to 
+	// send the current contents of the buffer.
+
 public:
-	static int TxData(void *pbTx, int cbTx)
+	static bool Process()
 	{
-		byte	*pb;
-		int		cb;
-		int		cbAvail;
-
-		pb = (byte *)bufTrans.GetCur();
-		cb = bufTrans.GetInUse();
-		cbAvail = FTDI_IN_BUF_SIZE - cb;
-		if (cbTx > cbAvail)
-			cbTx = cbAvail;
-		memcpy(pb + cb, pbTx, cbTx);
-		cb += cbTx;
-		bufTrans.SetInUse(cb);
-		if (cb >= FTDI_IN_BUF_SIZE)
+		if (fSendBuf)
 		{
-			// buffer full, send it off
-			TxDataRequest(FTDI_IN_ENDPOINT);
-		}
-		return cbTx;
-	}
-
-	static bool TxByte(byte b)
-	{
-		byte	*pb;
-		int		cb;
-
-		pb = (byte *)bufTrans.GetCur();
-		cb = bufTrans.GetInUse();
-		if (cb < FTDI_IN_BUF_SIZE)
-		{
-			pb[cb++] = b;
-			bufTrans.SetInUse(cb);
-			return true;
+			fSendBuf = false;
+			return SendBuffer();
 		}
 		return false;
 	}
+
+	static bool SendBuffer() NO_INLINE_ATTR
+	{
+		ushort	*pus;
+
+		if (bufTrans.GetIsSending())
+			return false;
+
+		pus = (ushort *)bufTrans.GetCur();
+		*pus = GetStatus();
+		bufTrans.SetIsSending(true);
+		SendToHost(FTDI_IN_ENDPOINT, pus, bufTrans.GetInUse());
+		bufTrans.Swap();
+		bufTrans.SetInUse(FTDI_STATUS_SIZE);	// Save space for status
+		return true;
+	}
+
+	// This function returns the no. bytes actually sent
+	static int TxData(void *pvTx, int cbTx) NO_INLINE_ATTR
+	{
+		byte	*pbTx = (byte *)pvTx;
+		byte	*pb;
+		int		cb;
+		int		cbSend;
+		int		cbTotal;
+
+		cbTotal = 0;
+		do 
+		{
+			pb = (byte *)bufTrans.GetCur();
+			cb = bufTrans.GetInUse();
+			cbSend = OutBufSize - cb;
+			if (cbSend > cbTx)
+				cbSend = cbTx;
+			memcpy(pb + cb, pbTx, cbSend);
+			pbTx += cbSend;
+			cbTx -= cbSend;
+			cb += cbSend;
+			cbTotal += cbSend;
+			bufTrans.SetInUse(cb);
+		} while (cb == OutBufSize && SendBuffer());
+
+		return cbTotal;
+	}
+
+	static bool TxByte(byte b) NO_INLINE_ATTR
+	{
+		byte	*pb;
+		int		cb;
+
+		cb = bufTrans.GetInUse();
+		if (cb >= OutBufSize)
+		{
+			if (!SendBuffer())
+				return false;
+			cb = bufTrans.GetInUse();
+		}
+
+		pb = (byte *)bufTrans.GetCur();
+		pb[cb++] = b;
+		bufTrans.SetInUse(cb);
+		if (cb == OutBufSize)
+		{
+			// buffer full, send it off
+			SendBuffer();
+		}
+		return true;
+	}
+
+	static int GetBaudRate()	{ return BaudRate; }
+
+	static PinStatusBits GetPinStatus()	{ return PinStatus; }
+
+	static void SetPinStatus(PinStatusBits pins)
+		 { PinStatus = (PinStatusBits)((PinStatus & ~STAT_Inputs) | (pins & STAT_Inputs)); }
 
 	//*********************************************************************
 	// Local Types
@@ -74,15 +210,26 @@ public:
 	class BufMgr
 	{
 public:
-		void *GetCur()			{ return &arBuf[usCur]; }
-		void Swap()				{ usCur ^= 1; }
+		void Init()					{ ulStatus = 0; }
+		void *GetCur()				{ return &arBuf[bCur]; }
+		void Swap()					{ bCur ^= 1; }
 		// count of bytes in use only used for transmit buffers
-		int GetInUse()			{ return usInUse; }
-		void SetInUse(int cb)	{ usInUse = cb; }
+		int GetInUse()				{ return usInUse; }
+		void SetInUse(int cb)		{ usInUse = cb; }
+		bool GetIsSending()			{ return fSending; }
+		void SetIsSending(bool f)	{ fSending = f; }
 
 protected:
-		ushort		usCur;
-		ushort		usInUse;
+		union
+		{
+			uint32_t	ulStatus;
+			struct  
+			{
+				ushort	usInUse;
+				byte	bCur;
+				volatile bool fSending;
+			};
+		};
 		uint32_t	arBuf[2][cbBuf/sizeof(uint32_t)];
 	};
 
@@ -99,62 +246,116 @@ protected:
 public:
 	static void DeviceConfigured()
 	{
-		SeedTransBuf();
-		ReceiveFromHost(FTDI_OUT_ENDPOINT, bufRcv.GetCur(), FTDI_OUT_BUF_SIZE);
+		bufTrans.Init();
+		bufRcv.Init();
+		bufTrans.SetInUse(FTDI_STATUS_SIZE);	// Save space for status
+		ReceiveFromHost(FTDI_OUT_ENDPOINT, bufRcv.GetCur(), InBufSize);
 	}
 
 	static void RxData(int iEp, void *pv, int cb)
 	{
 		// Swap in other buffer
 		bufRcv.Swap();
-		ReceiveFromHost(FTDI_OUT_ENDPOINT, bufRcv.GetCur(), FTDI_OUT_BUF_SIZE);
+		ReceiveFromHost(FTDI_OUT_ENDPOINT, bufRcv.GetCur(), InBufSize);
 		RxData(pv, cb);	// callback to report data
 	}
 
 	static void TxDataRequest(int iEp)
 	{
-		if (bufTrans.GetInUse() > FTDI_BUFFER_SEED_SIZE)
-			SendBuffer(iEp);
 	}
 
 	static void TxDataSent(int iEp)
 	{
+		bufTrans.SetIsSending(false);
 	}
 
 	static void StartOfFrame()
 	{
-		// If no data to send, go ahead and send empty buffer
-		if (bufTrans.GetInUse() == FTDI_BUFFER_SEED_SIZE)
-			SendBuffer(FTDI_IN_ENDPOINT);
+		// Send buffer with status whether or not we have data
+		fSendBuf = true;
 	}
 
 	static bool NonStandardSetup(UsbSetupPacket *pSetup)
 	{
 		int		cSrc;
 		int		cCur;
-		int		wTmp;
+		int		iTmp;
+		int		iMask;
+		byte	*pb;
 		ushort	*pus;
+		PinStatusBits		iStat;
 		const StringDesc	*pStr;
 		const SetupDataSrc	*pSrc;
 
 		switch (pSetup->bmRequestType)
 		{
 		case USBRT_DirOut | USBRT_TypeVendor | USBRT_RecipDevice:
-			if (pSetup->bRequest == 3)
+			switch(pSetup->bRequest)
 			{
+			case FTDI_SET_BAUD_RATE:
 				// Set baud rate
+				uint	uFrac;
+				uint	uDiv;
+				uint	uRate;
+
+				if (pSetup->wValue == 0)
+					uRate = 3000000;
+				else if (pSetup->wValue == 1)
+					uRate = 2000000;
+				else
+				{
+					uDiv = pSetup->wValue & 0x3FFF;
+					uFrac = pSetup->wValue >> 14;
+					uFrac |= (pSetup->wIndex & 1) << 2;
+					// Convert fraction bits to fraction number, in eighths
+					uFrac = arbBaudFrac[uFrac];
+					uDiv = (uDiv << 3) | uFrac;
+					uRate = DivUintRnd(24000000, uDiv);
+				}
+				if (uRate != BaudRate)
+				{
+					BaudRate = uRate;
+					StateChange(PC_BaudRate);
+				}
+				break;
+
+			case FTDI_MODEM_CTRL:
+				iTmp = pSetup->bDescIndex;	// first value is state
+				iMask = pSetup->bDescType;	// second value is mask
+				iMask &= STAT_Modem;		// Only accept valid bits
+				iTmp &= iMask; 
+				iStat = (PinStatusBits)((PinStatus & ~iMask) | iTmp);
+SetStatus:
+				if (iStat != PinStatus)
+				{
+					PinStatus = iStat;
+					StateChange(PC_PinStatus);
+				}
+				break;
+
+			case FTDI_SET_DATA:
+				// First byte has no. of data bits
+				// Second byte also has parity & stop bits.
+				// We don't care about that stuff, just get BREAK.
+				iTmp = PinStatus & ~STAT_Break;
+				if (pSetup->bDescType & FTDI_SendBreak)
+					iTmp = (iTmp | STAT_Break);
+				iStat = (PinStatusBits)iTmp;
+				goto SetStatus;
 			}
-			// Don't know what this is, just accept it
+			// Whatever this is, just accept it
 			AckControlPacket();
 			return true;
 
 		case USBRT_DirIn | USBRT_TypeVendor | USBRT_RecipDevice:
 			switch(pSetup->bRequest)
 			{
-			case 0x05:
-				// FT232 returns the idProduct for this request
-				pus = (ushort *)GetSetupBuf();
-				*pus = USB_DEV_Product;
+			case FTDI_GET_MODEM_STATUS:
+				pb = (byte *)GetSetupBuf();
+				pb[0] = (PinStatus & STAT_Inputs) | FTDI_MODEM_STATUS_BASE;
+				// This is where we could send back errors - 
+				// overrun, framing, parity
+				pb[1] = FTDI_LINE_STATUS;
 				break;
 
 			case 0x90:
@@ -170,7 +371,7 @@ public:
 						if (cCur < cSrc)
 						{
 							pus = (ushort *)pStr;
-							wTmp = *(pus + cCur);
+							iTmp = *(pus + cCur);
 							goto SendBytes;
 						}
 					}
@@ -184,12 +385,12 @@ public:
 
 				pus = (ushort *)pSrc->pus;
 				if (pus == NULL)
-					wTmp = 0;
+					iTmp = 0;
 				else
-					wTmp = *(pus + cCur);
+					iTmp = *(pus + cCur);
 SendBytes:
 				pus = (ushort *)GetSetupBuf();
-				*pus = wTmp;
+				*pus = iTmp;
 				break;
 
 			default:
@@ -209,22 +410,9 @@ SendBytes:
 	//*********************************************************************
 
 protected:
-	static void SendBuffer(int iEp)
+	static ushort GetStatus()
 	{
-		SendToHost(iEp, bufTrans.GetCur(), bufTrans.GetInUse());
-		bufTrans.Swap();
-		SeedTransBuf();
-	}
-
-	static void SeedTransBuf()
-	{
-		byte	*pb;
-
-		// Seed the transmit buffer
-		pb = (byte *)bufTrans.GetCur();
-		*pb++ = LOBYTE(FTDI_BUFFER_SEED);
-		*pb++ = HIBYTE(FTDI_BUFFER_SEED);
-		bufTrans.SetInUse(FTDI_BUFFER_SEED_SIZE);
+		return ((PinStatus & STAT_Inputs) | FTDI_MODEM_STATUS_BASE) | (FTDI_LINE_STATUS << 8);
 	}
 
 	//*********************************************************************
@@ -264,12 +452,23 @@ protected:
 	};
 
 	//*********************************************************************
+	// Baud rate lookup table
+
+	inline static const byte arbBaudFrac[8] = {0, 4, 2, 1, 3, 5, 6, 7};
+
+	//*********************************************************************
 	// static (RAM) data
 	//*********************************************************************
 
 protected:
-	inline static BufMgr<FTDI_IN_BUF_SIZE> bufTrans;
-	inline static BufMgr<FTDI_OUT_BUF_SIZE> bufRcv;
+	inline static BufMgr<OutBufSize> bufTrans;
+	inline static BufMgr<InBufSize> bufRcv;
+
+	inline static uint BaudRate;
+	inline static PinStatusBits PinStatus;
+
+	// Set in ISR
+	volatile inline static bool fSendBuf;
 };
 
 //****************************************************************************

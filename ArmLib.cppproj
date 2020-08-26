@@ -208,9 +208,6 @@
     <Compile Include="stdio.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="Usb\Cdc.h">
-      <SubType>compile</SubType>
-    </Compile>
     <Compile Include="Usb\Device\FT232\FT232.h">
       <SubType>compile</SubType>
     </Compile>
@@ -220,7 +217,7 @@
     <Compile Include="Usb\Device\SamUsbDevice.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="Usb\Device\UsbDevice.h">
+    <Compile Include="Usb\Device\USBdevice.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Usb\Usb.h">

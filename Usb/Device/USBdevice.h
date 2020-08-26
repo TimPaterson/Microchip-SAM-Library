@@ -174,12 +174,12 @@ protected:
 	}
 
 	// The first call to GetSetupData() enables receiving the OUT data
-	// packet from the host, and return NULL to indicate data not ready.
+	// packet from the host, and returns NULL to indicate data not ready.
 	// Once the data has been received, the setup process is repeated
 	// and the second call returns the pointer to the data. A call to
 	// GetSetupDataLength() is needed to get size of received packet.
 	//
-	static byte *GetSetupData()
+	static byte *GetSetupData() NO_INLINE_ATTR
 	{
 		byte	*pb;
 		UsbDeviceDescBank	*pBank;
@@ -209,7 +209,7 @@ protected:
 		return EndpointDesc[0].DeviceDescBank[0].PCKSIZE.bit.BYTE_COUNT;
 	}
 
-	static void SendToHost(int iEp, void *pv, int cb)
+	static void SendToHost(int iEp, void *pv, int cb) NO_INLINE_ATTR
 	{
 		UsbDeviceDescBank	*pBank;
 
@@ -221,7 +221,7 @@ protected:
 		USB->DEVICE.DeviceEndpoint[iEp].EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_BK1RDY;
 	}
 
-	static void ReceiveFromHost(int iEp, void *pv, int cb)
+	static void ReceiveFromHost(int iEp, void *pv, int cb) NO_INLINE_ATTR
 	{
 		UsbDeviceDescBank	*pBank;
 
