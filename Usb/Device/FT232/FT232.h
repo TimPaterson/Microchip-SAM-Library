@@ -48,6 +48,9 @@ public:
 
 protected:
 	static constexpr int InBufSize = FTDI_OUT_BUF_SIZE;	// host to device
+
+	// Setting the buffer size to less than the packet size saves time
+	// by not needing zero-length packets.
 	static constexpr int OutBufSize = FTDI_IN_BUF_SIZE - 1;	// device to host
 
 	//*************************************************************************
@@ -230,7 +233,7 @@ protected:
 				volatile bool fSending;
 			};
 		};
-		uint32_t	arBuf[2][cbBuf/sizeof(uint32_t)];
+		uint32_t	arBuf[2][(cbBuf + sizeof(uint32_t) - 1)/sizeof(uint32_t)];
 	};
 
 	struct SetupDataSrc
