@@ -97,6 +97,7 @@ protected:
 	static void TxDataRequest(int iEp);
 	static void TxDataSent(int iEp);
 	static bool NonStandardSetup(UsbSetupPacket *pSetup);
+	static const void *NonStandardString(int index);
 #ifdef USB_DEV_SerialNo
 	static const StringDesc *GetSerialStrDesc();
 #endif
@@ -472,20 +473,16 @@ protected:
 
 					case USBDESC_String:
 						if (pSetup->bDescIndex < _countof(arpStrDesc))
-						{
 							pv = arpStrDesc[pSetup->bDescIndex];
-							cbAvail = ((UsbStringDesc *)pv)->bLength;
-							break;
-						}
 #ifdef USB_DEV_SerialNo
 						else if (pSetup->bDescIndex == USBSTR_SerialNo)
-						{
 							pv = GetSerialStrDesc();
-							cbAvail = ((UsbStringDesc *)pv)->bLength;
-							break;
-						}
 #endif
-						goto BadRequest;
+						else if ((pv = NonStandardString(pSetup->bDescIndex)) == NULL)
+							goto BadRequest;
+
+						cbAvail = ((UsbStringDesc *)pv)->bLength;
+						break;
 
 					default:
 						goto BadRequest;

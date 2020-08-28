@@ -8,10 +8,15 @@
 #define FTDI_OUT_ENDPOINT	2
 #define FTDI_STATUS_SIZE	2
 
+// This is represents the format and length of the serial number
+// First character is kept, remainder is replaced by number generated
+// from D21 chip serial number.
+#define	SERIAL_NUM	"B0000000"
+
+
 //****************************************************************************
 // FT232 Serial-to-USB converter
 //****************************************************************************
-
 
 class FT232 : public USBdevice
 {
@@ -278,6 +283,11 @@ public:
 		fSendBuf = true;
 	}
 
+	static const void *NonStandardString(int index)
+	{
+		return NULL;
+	}
+
 	static bool NonStandardSetup(UsbSetupPacket *pSetup)
 	{
 		int		cSrc;
@@ -408,6 +418,36 @@ SendBytes:
 		return false;
 	}
 
+	static const StringDesc *GetSerialStrDesc() NO_INLINE_ATTR
+	{
+		if (uSerialNum == 0)
+		{
+			char		*pch;
+			char16_t	*pch16;
+
+			// Use D21 serial number to generate USB serial number
+			uSerialNum = *NVM_SERIAL_NUMBER_0 + *NVM_SERIAL_NUMBER_1 +
+				*NVM_SERIAL_NUMBER_2 + *NVM_SERIAL_NUMBER_3;
+
+			pch16 = &SerialNumber.str[1];
+			pch = (char *)pch16;
+			// Convert the 32-bit number to a string in base 36.
+			// This will use '0' - '9' and 'a' - 'z', but as 
+			// 8-bit characters. It will take at most 7 digits.
+			itoa(uSerialNum, pch, 36);
+			// Read the 8-bit characters and write them back as
+			// 16-bit characters, starting at the end.
+			for (int i = 6; i >= 0; i--)
+			{
+				char ch = pch[i];
+				// convert to upper case
+				ch &= ~((ch & 0x40) >> 1); 
+				pch16[i] = ch;
+			}
+		}
+		return &SerialNumber;
+	}
+
 	//*********************************************************************
 	// Helpers
 	//*********************************************************************
@@ -470,6 +510,19 @@ protected:
 	inline static uint BaudRate;
 	inline static PinStatusBits PinStatus;
 
+	//*********************************************************************
+	// Serial number, generated from D21 chip serial number
+
+	inline static uint32_t uSerialNum;
+
+	inline static StringDesc SerialNumber =
+	{
+		{sizeof(UsbStringDesc) + sizeof(STRING16(SERIAL_NUM)) - sizeof(char16_t),
+			USBDESC_String},
+		STRING16(SERIAL_NUM)
+	};
+
+	//*********************************************************************
 	// Set in ISR
 	volatile inline static bool fSendBuf;
 };
@@ -503,9 +556,21 @@ inline bool USBdevice::NonStandardSetup(UsbSetupPacket *pSetup)
 	return FT232::NonStandardSetup(pSetup);
 }
 
+inline const void *USBdevice::NonStandardString(int index)
+{
+	return FT232::NonStandardString(index);
+}
+
 #ifdef USB_SOF_INT
 inline void USBdevice::StartOfFrame()
 {
 	FT232::StartOfFrame();
+}
+#endif
+
+#ifdef USB_DEV_SerialNo
+inline const USBdevice::StringDesc *USBdevice::GetSerialStrDesc()
+{
+	return FT232::GetSerialStrDesc();
 }
 #endif
