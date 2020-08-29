@@ -1,3 +1,11 @@
+//****************************************************************************
+// Class FT232
+// FT232.h
+//
+// Created 8/18/2020 10:40:12 AM by Tim
+//
+//****************************************************************************
+
 #pragma once
 
 #include "FT232Def.h"
@@ -121,7 +129,7 @@ protected:
 	// loop should call Process(). It will send the buffer every 1 ms.
 	//
 	// If your transmissions are packet oriented, or you prefer a different
-	// latency interval, you can all SendBuffer() whenever you want to 
+	// latency interval, you can also call SendBuffer() whenever you want to
 	// send the current contents of the buffer.
 
 public:
@@ -161,7 +169,7 @@ public:
 		int		cbTotal;
 
 		cbTotal = 0;
-		do 
+		do
 		{
 			pb = (byte *)bufTrans.GetCur();
 			cb = bufTrans.GetInUse();
@@ -231,7 +239,7 @@ protected:
 		union
 		{
 			uint32_t	ulStatus;
-			struct  
+			struct
 			{
 				ushort	usInUse;
 				byte	bCur;
@@ -336,7 +344,7 @@ public:
 				iTmp = pSetup->bDescIndex;	// first value is state
 				iMask = pSetup->bDescType;	// second value is mask
 				iMask &= STAT_Modem;		// Only accept valid bits
-				iTmp &= iMask; 
+				iTmp &= iMask;
 				iStat = (PinStatusBits)((PinStatus & ~iMask) | iTmp);
 SetStatus:
 				if (iStat != PinStatus)
@@ -347,7 +355,7 @@ SetStatus:
 				break;
 
 			case FTDI_SET_DATA:
-				// First byte has no. of data bits
+				// First byte of wValue has no. of data bits.
 				// Second byte also has parity & stop bits.
 				// We don't care about that stuff, just get BREAK.
 				iTmp = PinStatus & ~STAT_Break;
@@ -366,7 +374,7 @@ SetStatus:
 			case FTDI_GET_MODEM_STATUS:
 				pb = (byte *)GetSetupBuf();
 				pb[0] = (PinStatus & STAT_Inputs) | FTDI_MODEM_STATUS_BASE;
-				// This is where we could send back errors - 
+				// This is where we could send back errors -
 				// overrun, framing, parity
 				pb[1] = FTDI_LINE_STATUS;
 				break;
@@ -432,7 +440,7 @@ SendBytes:
 			pch16 = &SerialNumber.str[1];
 			pch = (char *)pch16;
 			// Convert the 32-bit number to a string in base 36.
-			// This will use '0' - '9' and 'a' - 'z', but as 
+			// This will use '0' - '9' and 'a' - 'z', but as
 			// 8-bit characters. It will take at most 7 digits.
 			itoa(uSerialNum, pch, 36);
 			// Read the 8-bit characters and write them back as
@@ -441,7 +449,7 @@ SendBytes:
 			{
 				char ch = pch[i];
 				// convert to upper case
-				ch &= ~((ch & 0x40) >> 1); 
+				ch &= ~((ch & 0x40) >> 1);
 				pch16[i] = ch;
 			}
 		}
@@ -464,12 +472,12 @@ protected:
 
 protected:
 	// The FT232 has a vendor-specific request to return some data, some
-	// of which has unknown meaning. This table provides the data as 
+	// of which has unknown meaning. This table provides the data as
 	// seen with a USB analyzer
 
 	inline static const ushort arusSetupData1[] =
 	{
-		0x4000, USB_DEV_Vendor, USB_DEV_Product, 0x000, 0x2DA0, 
+		0x4000, USB_DEV_Vendor, USB_DEV_Product, 0x000, 0x2DA0,
 		0x0008, 0x0000, 0x0A98, 0x20A2, 0x12C2, 0x1023, 0x0005
 	};
 

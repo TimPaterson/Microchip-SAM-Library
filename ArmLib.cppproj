@@ -168,12 +168,14 @@
   <ItemGroup>
     <Folder Include="IoBuf\" />
     <Folder Include="IoBuf\" />
+    <Folder Include="Lib\" />
     <Folder Include="Math" />
     <Folder Include="Dma" />
     <Folder Include="Nvm" />
     <Folder Include="Usb\" />
     <Folder Include="Usb\Device\" />
     <Folder Include="Usb\Device\FT232" />
+    <Folder Include="Usb\Device\WinUsb\" />
     <Folder Include="Usb\Host\" />
     <Folder Include="Util" />
   </ItemGroup>
@@ -220,6 +222,12 @@
     <Compile Include="Usb\Device\USBdevice.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="Usb\Device\WinUsb\MsftUsb.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Usb\Device\WinUsb\WinUsb.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="Usb\Usb.h">
       <SubType>compile</SubType>
     </Compile>
@@ -229,6 +237,29 @@
     <Compile Include="Util\TimerLib.h">
       <SubType>compile</SubType>
     </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Lib\libDivas.a">
+      <SubType>compile</SubType>
+    </None>
+    <None Include="Lib\libstdio-l-flt.a">
+      <SubType>compile</SubType>
+    </None>
+    <None Include="Lib\libstdio-l.a">
+      <SubType>compile</SubType>
+    </None>
+    <None Include="Lib\libstdio-ll-dbl.a">
+      <SubType>compile</SubType>
+    </None>
+    <None Include="Lib\libstdio-ll-flt-dbl.a">
+      <SubType>compile</SubType>
+    </None>
+    <None Include="Lib\libstdio-ll-flt.a">
+      <SubType>compile</SubType>
+    </None>
+    <None Include="Lib\libstdio-ll.a">
+      <SubType>compile</SubType>
+    </None>
   </ItemGroup>
   <Import Project="$(AVRSTUDIO_EXE_PATH)\\Vs\\Compiler.targets" />
 </Project>

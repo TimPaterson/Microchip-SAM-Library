@@ -19,6 +19,10 @@
 #define USB_DEV_UsbVer USB_VER_2p0
 #endif
 
+#ifndef MAX_USB_DESCRIPTOR_SIZE
+#define MAX_USB_DESCRIPTOR_SIZE	0
+#endif
+
 constexpr int max(int a, int b) { return a > b ? a : b; }
 
 //*************************************************************************
@@ -668,7 +672,8 @@ protected:
 #define ENDPOINT_IN(ep, trans, size, interval) max(size,
 #define ENDPOINT_OUT(ep, trans, size, interval) max(size,
 
-	static constexpr int SetupBufSize = ENDPOINT_LIST sizeof(UsbConfig)
+	static constexpr int SetupBufSize = ENDPOINT_LIST 
+		max(sizeof(UsbConfig), MAX_USB_DESCRIPTOR_SIZE)
 
 #undef ENDPOINT_IN
 #undef ENDPOINT_OUT
