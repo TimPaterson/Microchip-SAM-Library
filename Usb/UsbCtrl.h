@@ -34,9 +34,9 @@ public:
 		// Increase SRAM quality of service for low latency
 		USB->HOST.QOSCTRL.reg = USB_QOSCTRL_CQOS_MEDIUM | USB_QOSCTRL_DQOS_MEDIUM;
 
-		// Lower interrupt priority because we could spend 
-		// some time servicing USB interrupts
-		NVIC_SetPriority(USB_IRQn, 0x80);
+		// Lower interrupt priority because we could spend some time 
+		// servicing USB interrupts. Priority 0 = highest, 3 = lowest.
+		NVIC_SetPriority(USB_IRQn, 2);
 		// Enable interrupts
 		NVIC_EnableIRQ(USB_IRQn);
 	};
