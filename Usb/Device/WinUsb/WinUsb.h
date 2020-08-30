@@ -42,40 +42,10 @@ protected:
 	};
 
 	//*********************************************************************
-	// Public interface
-	//*********************************************************************
-
-public:
-	static bool Process()
-	{
-		return false;
-	}
-
-	//*********************************************************************
 	// Implementation of callbacks from USBdevice class
 	//*********************************************************************
 
 public:
-	static void DeviceConfigured()
-	{
-	}
-
-	static void RxData(int iEp, void *pv, int cb)
-	{
-	}
-
-	static void TxDataRequest(int iEp)
-	{
-	}
-
-	static void TxDataSent(int iEp)
-	{
-	}
-
-	static void StartOfFrame()
-	{
-	}
-
 	static const void *NonStandardString(int index)
 	{
 		if (index == MSFT_OS_STR_DESC)
@@ -187,26 +157,6 @@ protected:
 // Callbacks from USBdevice class
 //****************************************************************************
 
-inline void USBdevice::DeviceConfigured()
-{
-	WinUsb::DeviceConfigured();
-}
-
-inline void USBdevice::RxData(int iEp, void *pv, int cb)
-{
-	WinUsb::RxData(iEp, pv, cb);
-}
-
-inline void USBdevice::TxDataRequest(int iEp)
-{
-	WinUsb::TxDataRequest(iEp);
-}
-
-inline void USBdevice::TxDataSent(int iEp)
-{
-	WinUsb::TxDataSent(iEp);
-}
-
 inline bool USBdevice::NonStandardSetup(UsbSetupPacket *pSetup)
 {
 	return WinUsb::NonStandardSetup(pSetup);
@@ -216,17 +166,3 @@ inline const void *USBdevice::NonStandardString(int index)
 {
 	return WinUsb::NonStandardString(index);
 }
-
-#ifdef USB_SOF_INT
-inline void USBdevice::StartOfFrame()
-{
-	WinUsb::StartOfFrame();
-}
-#endif
-
-#ifdef USB_DEV_SerialNo
-inline const USBdevice::StringDesc *USBdevice::GetSerialStrDesc()
-{
-	return WinUsb::GetSerialStrDesc();
-}
-#endif
