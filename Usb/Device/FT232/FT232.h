@@ -26,7 +26,8 @@
 // FT232 Serial-to-USB converter
 //****************************************************************************
 
-class FT232 : public USBdevice
+template<class T>
+class FT232 : public USBdeviceBase
 {
 	//*********************************************************************
 	// Public Types
@@ -108,13 +109,14 @@ protected:
 	};
 
 	//*********************************************************************
-	// These are callbacks implemented in customized code
+	// These are callbacks implemented in class T, the template argument
 	//*********************************************************************
 
-	// These callback occur from the ISR, so don't dawdle...
+	/*
 protected:
 	static void RxData(void *pv, int cb);
 	static void StateChange(int flags);
+	*/
 
 	//*********************************************************************
 	// Public interface
@@ -273,7 +275,7 @@ public:
 		// Swap in other buffer
 		bufRcv.Swap();
 		ReceiveFromHost(FTDI_OUT_ENDPOINT, bufRcv.GetCur(), InBufSize);
-		RxData(pv, cb);	// callback to report data
+		T::RxData(pv, cb);	// callback to report data
 	}
 
 	static void TxDataRequest(int iEp)
@@ -336,7 +338,7 @@ public:
 				if (uRate != BaudRate)
 				{
 					BaudRate = uRate;
-					StateChange(PC_BaudRate);
+					T::StateChange(PC_BaudRate);
 				}
 				break;
 
@@ -350,7 +352,7 @@ SetStatus:
 				if (iStat != PinStatus)
 				{
 					PinStatus = iStat;
-					StateChange(PC_PinStatus);
+					T::StateChange(PC_PinStatus);
 				}
 				break;
 
@@ -533,52 +535,11 @@ protected:
 	//*********************************************************************
 	// Set in ISR
 	volatile inline static bool fSendBuf;
+
+	//*********************************************************************
+	// The interrupt service routine - class with no data
+	//*********************************************************************
+
+public:
+	static USBdeviceIsr<FT232<T>>	ISR;
 };
-
-//****************************************************************************
-// Callbacks from USBdevice class
-//****************************************************************************
-
-inline void USBdevice::DeviceConfigured()
-{
-	FT232::DeviceConfigured();
-}
-
-inline void USBdevice::RxData(int iEp, void *pv, int cb)
-{
-	FT232::RxData(iEp, pv, cb);
-}
-
-inline void USBdevice::TxDataRequest(int iEp)
-{
-	FT232::TxDataRequest(iEp);
-}
-
-inline void USBdevice::TxDataSent(int iEp)
-{
-	FT232::TxDataSent(iEp);
-}
-
-inline bool USBdevice::NonStandardSetup(UsbSetupPacket *pSetup)
-{
-	return FT232::NonStandardSetup(pSetup);
-}
-
-inline const void *USBdevice::NonStandardString(int index)
-{
-	return FT232::NonStandardString(index);
-}
-
-#ifdef USB_SOF_INT
-inline void USBdevice::StartOfFrame()
-{
-	FT232::StartOfFrame();
-}
-#endif
-
-#ifdef USB_DEV_SerialNo
-inline const USBdevice::StringDesc *USBdevice::GetSerialStrDesc()
-{
-	return FT232::GetSerialStrDesc();
-}
-#endif

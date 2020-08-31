@@ -26,8 +26,8 @@ struct MsftExtendedProps
 
 #include <Usb/Device/USBdevice.h>
 
-
-class WinUsb : public USBdevice
+template<class T>
+class WinUsb : public USBdeviceBase
 {
 	//*********************************************************************
 	// Local Types
@@ -50,7 +50,7 @@ public:
 	{
 		if (index == MSFT_OS_STR_DESC)
 			return &Ms10StrDesc;
-		return NULL;
+		return T::NonStandardString(index);
 	}
 
 	static bool NonStandardSetup(UsbSetupPacket *pSetup)
@@ -72,7 +72,7 @@ public:
 					break;
 
 				default:
-					return false;
+					goto UnknownSetup;
 			}
 
 			// Send the descriptor, limited by request length
@@ -84,7 +84,38 @@ public:
 			SendControlPacket(cbAvail);
 			return true;
 		}
-		return false;
+
+	UnknownSetup:
+		return T::NonStandardSetup(pSetup);
+	}
+
+	//*********************************************************************
+	// These callbacks are not handled here, pass them on to implementation
+	// in class T, the template argument
+
+	static void DeviceConfigured()
+	{
+		T::DeviceConfigured();
+	}
+
+	static void RxData(int iEp, void *pv, int cb)
+	{
+		T::RxData(iEp, pv, cb);
+	}
+
+	static void TxDataRequest(int iEp)
+	{
+		T::TxDataRequest(iEp);
+	}
+
+	static void TxDataSent(int iEp)
+	{
+		T::TxDataSent(iEp);
+	}
+
+	static void StartOfFrame()
+	{
+		T::StartOfFrame();
 	}
 
 	//*********************************************************************
@@ -151,18 +182,11 @@ protected:
 			{ STRING16(USB_DEVICE_LABEL) }
 		}
 	};
+
+	//*********************************************************************
+	// The interrupt service routine - class with no data
+	//*********************************************************************
+
+public:
+	static USBdeviceIsr<WinUsb<T>>	ISR;
 };
-
-//****************************************************************************
-// Callbacks from USBdevice class
-//****************************************************************************
-
-inline bool USBdevice::NonStandardSetup(UsbSetupPacket *pSetup)
-{
-	return WinUsb::NonStandardSetup(pSetup);
-}
-
-inline const void *USBdevice::NonStandardString(int index)
-{
-	return WinUsb::NonStandardString(index);
-}

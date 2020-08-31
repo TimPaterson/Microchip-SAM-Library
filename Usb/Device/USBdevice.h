@@ -12,7 +12,7 @@
 #include "SamUsbDevice.h"
 
 
-#define DEFINE_USB_ISR	void USB_Handler() { USBdevice::UsbIsr(); }
+#define DEFINE_USB_ISR(dev)	void USB_Handler() { dev::ISR.UsbIsr(); }
 
 // Set default version if not explicit
 #ifndef USB_DEV_UsbVer
@@ -26,10 +26,10 @@
 constexpr int max(int a, int b) { return a > b ? a : b; }
 
 //*************************************************************************
-// USBdevice Class
+// USBdeviceBase Class
 //*************************************************************************
 
-class USBdevice : public UsbCtrl
+class USBdeviceBase : public UsbCtrl
 {
 	//*********************************************************************
 	// Local Types
@@ -90,24 +90,6 @@ protected:
 		byte	Bank0;
 		byte	Bank1;
 	};
-
-	//*********************************************************************
-	// These are callbacks implemented in customized code
-	//*********************************************************************
-
-protected:
-	static void DeviceConfigured();
-	static void RxData(int iEp, void *pv, int cb);
-	static void TxDataRequest(int iEp);
-	static void TxDataSent(int iEp);
-	static bool NonStandardSetup(UsbSetupPacket *pSetup);
-	static const void *NonStandardString(int index);
-#ifdef USB_DEV_SerialNo
-	static const StringDesc *GetSerialStrDesc();
-#endif
-#ifdef USB_SOF_INT
-	static void StartOfFrame();
-#endif
 
 	//*********************************************************************
 	// Public interface
@@ -235,311 +217,6 @@ protected:
 		pBank->PCKSIZE.reg = USB_DEVICE_PCKSIZE_MULTI_PACKET_SIZE(cb) |
 			USB_DEVICE_PCKSIZE_SIZE(arEpSize[iEp].Bank0);
 		USB->DEVICE.DeviceEndpoint[iEp].EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_BK0RDY;
-	}
-
-	//*********************************************************************
-	// Interrupt service routines
-	//*********************************************************************
-
-public:
-	static void UsbIsr() INLINE_ATTR
-	{
-		int		iEp;
-		int		epIntSummary;
-		int		intFlags;
-		int		intEnFlags;
-		UsbDeviceEndpoint	*pEp;
-		UsbDeviceDescBank	*pBank;
-
-		//*****************************************************************
-		// Handle device-level interrupts
-
-		intFlags = USB->DEVICE.INTFLAG.reg;
-		if (intFlags & USB_DEVICE_INTFLAG_EORST)
-		{
-			// Clear the interrupt flag
-			USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_EORST;
-
-			// Interrupts are disabled by reset
-			USB->DEVICE.DeviceEndpoint[0].EPINTENSET.reg = USB_DEVICE_EPINTENSET_RXSTP;
-
-			//*************************************************************
-			// Use ENDPOINT_LIST to generate code to initialize each endpoint
-
-			#define Bulk		BULK
-			#define Interrupt	INTERRUPT
-
-			// Code to initialize IN endpoint:
-			// Set the configuration register
-			// Enable Transfer Complete and Transfer Fail interrupts
-			#define ENDPOINT_IN(ep, trans, size, interval) \
-				pEp = &USB->DEVICE.DeviceEndpoint[ep];						\
-				pEp->EPCFG.reg |= CONCAT(USB_DEVICE_EPCFG_EPTYPE1_, trans); \
-				pEp->EPINTENSET.reg |= USB_DEVICE_EPINTENSET_TRCPT1 |		\
-					USB_DEVICE_EPINTENSET_TRFAIL1;
-
-			// Code to initialize OUT endpoint:
-			// Set the configuration register
-			// Set the BK0RDY bit so it will not be ready to receive
-			// Enable Transfer Complete interrupt
-			#define ENDPOINT_OUT(ep, trans, size, interval)	\
-				pEp = &USB->DEVICE.DeviceEndpoint[ep];						\
-				pEp->EPCFG.reg |= CONCAT(USB_DEVICE_EPCFG_EPTYPE0_, trans); \
-				pEp->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_BK0RDY;		\
-				pEp->EPINTENSET.reg |= USB_DEVICE_EPINTENSET_TRCPT0;
-
-			ENDPOINT_LIST
-
-			#undef ENDPOINT_IN
-			#undef ENDPOINT_OUT
-			#undef Bulk
-			#undef Interrupt
-
-		}
-
-#ifdef USB_SOF_INT
-		if (intFlags & USB_DEVICE_INTFLAG_SOF)
-		{
-			// Clear the interrupt flag
-			USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_SOF;
-
-			StartOfFrame();
-		}
-#endif
-
-		// Check for other device-level flags here
-
-		//*****************************************************************
-		// Handle endpoint-level interrupts
-
-		epIntSummary = USB->DEVICE.EPINTSMRY.reg;
-
-		for (iEp = 0; epIntSummary != 0; iEp++, epIntSummary >>= 1)
-		{
-			if ((epIntSummary & 1) == 0)
-				continue;
-
-			pEp = &USB->DEVICE.DeviceEndpoint[iEp];
-			intFlags = pEp->EPINTFLAG.reg;
-			intEnFlags = pEp->EPINTENSET.reg;
-
-			if (iEp == 0)
-			{
-				// Handle control endpoint
-
-				if (intFlags & USB_DEVICE_EPINTFLAG_RXSTP)
-				{
-					// Clear the interrupt flag
-					pEp->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_RXSTP;
-
-					// setup request
-					ProcessSetup();
-				}
-				else if ((intFlags & USB_DEVICE_EPINTFLAG_TRCPT0) &&
-					(intEnFlags & USB_DEVICE_EPINTFLAG_TRCPT0))
-				{
-					// Stop responding to transfer complete
-					pEp->EPINTENCLR.reg = USB_DEVICE_EPINTENSET_TRCPT0;
-
-					// Restore setup data pointer
-					EndpointDesc[0].DeviceDescBank[0].ADDR.reg = GetSetupBufInt();
-
-					// We've received setup data, continue processing
-					ProcessSetup();
-				}
-				else if ((intFlags & USB_DEVICE_EPINTFLAG_TRCPT1) &&
-					(intEnFlags & USB_DEVICE_EPINTFLAG_TRCPT1))
-				{
-					// Stop responding to transfer complete
-					pEp->EPINTENCLR.reg = USB_DEVICE_EPINTENSET_TRCPT1;
-
-					// Enable device address
-					USB->DEVICE.DADD.reg |= USB_DEVICE_DADD_ADDEN;
-				}
-			}
-			else
-			{
-				// Not the control endpoint
-
-				if (intFlags & USB_DEVICE_EPINTFLAG_TRCPT0)
-				{
-					// Clear the interrupt flag
-					pEp->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT0;
-
-					pBank = &EndpointDesc[iEp].DeviceDescBank[0];
-					RxData(iEp, (void *)pBank->ADDR.reg, pBank->PCKSIZE.bit.BYTE_COUNT);
-				}
-
-				if (intFlags & USB_DEVICE_EPINTFLAG_TRCPT1)
-				{
-					// Clear the interrupt flag
-					pEp->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT1;
-					TxDataSent(iEp);
-				}
-
-				if (intFlags & USB_DEVICE_EPINTFLAG_TRFAIL1)
-				{
-					// Clear the interrupt flag
-					pEp->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRFAIL1;
-					TxDataRequest(iEp);
-				}
-			}
-		}
-	}
-
-	//*********************************************************************
-	// Handle setup requests in ISR
-
-protected:
-	static void ProcessSetup()
-	{
-		int		cbReq;
-		int		cbAvail;
-		ushort	*pus;
-		const void *pv;
-		UsbSetupPacket	*pSetup;
-
-		pSetup = GetSetupBuf();
-
-		if (pSetup->Type == USBRT_TypeStd_Val)
-		{
-			// Standard setup
-			if (pSetup->Dir == USBRT_DirOut_Val)
-			{
-				// From host to device
-				switch (pSetup->bRequest)
-				{
-				case USBREQ_Clear_Feature:
-					if (pSetup->wValue == USBFEAT_EndpointHalt &&
-						pSetup->bmRequestType == (USBRT_DirOut | USBRT_TypeStd | USBRT_RecipEp) &&
-						(pSetup->wIndex & ~USBRT_Dir_Msk) <= USB_MAX_ENDPOINT_NUMBER)
-					{
-						USB->DEVICE.DeviceEndpoint[pSetup->wIndex].EPSTATUSCLR.reg =
-							pSetup->wIndex & USBRT_DirIn ? USB_DEVICE_EPSTATUSCLR_STALLRQ1 :
-							USB_DEVICE_EPSTATUSCLR_STALLRQ0;
-						break;
-					}
-					goto BadRequest;
-
-				case USBREQ_Set_Feature:
-					if (pSetup->wValue == USBFEAT_EndpointHalt &&
-						pSetup->bmRequestType == (USBRT_DirOut | USBRT_TypeStd | USBRT_RecipEp) &&
-						(pSetup->wIndex & ~USBRT_Dir_Msk) <= USB_MAX_ENDPOINT_NUMBER)
-					{
-						USB->DEVICE.DeviceEndpoint[pSetup->wIndex].EPSTATUSSET.reg =
-							pSetup->wIndex & USBRT_DirIn ? USB_DEVICE_EPSTATUSSET_STALLRQ1 :
-							USB_DEVICE_EPSTATUSSET_STALLRQ0;
-						break;
-					}
-					goto BadRequest;
-
-				case USBREQ_Set_Address:
-					// Set device address, but don't enable it
-					USB->DEVICE.DADD.reg = USB_DEVICE_DADD_DADD(pSetup->bValue);
-					// Enable the transfer complete interrupt so we can enable the address when we're done
-					// Clear flag first
-					USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT1;
-					USB->DEVICE.DeviceEndpoint[0].EPINTENSET.reg = USB_DEVICE_EPINTENSET_TRCPT1;
-					break;
-
-				case USBREQ_Set_Configuration:
-					// Only 1 configuration supported
-					if (pSetup->bValue > 1)
-						goto BadRequest;
-
-					DeviceConfigured();
-					break;
-
-				default:
-					goto BadRequest;
-				}
-				// Accept the packet
-				AckControlPacket();
-				return;
-			}
-			else
-			{
-				// From device to host
-				switch (pSetup->bRequest)
-				{
-				case USBREQ_Get_Descriptor:
-					switch (pSetup->bDescType)
-					{
-					case USBDESC_Device:
-						pv = &DeviceDesc;
-						cbAvail = sizeof DeviceDesc;
-						break;
-
-					case USBDESC_Config:
-						pv = &USBdevice::ConfigDesc;
-						cbAvail = sizeof(UsbConfig);
-						break;
-
-					case USBDESC_String:
-						if (pSetup->bDescIndex < _countof(arpStrDesc))
-							pv = arpStrDesc[pSetup->bDescIndex];
-#ifdef USB_DEV_SerialNo
-						else if (pSetup->bDescIndex == USBSTR_SerialNo)
-							pv = GetSerialStrDesc();
-#endif
-						else if ((pv = NonStandardString(pSetup->bDescIndex)) == NULL)
-							goto BadRequest;
-
-						cbAvail = ((UsbStringDesc *)pv)->bLength;
-						break;
-
-					default:
-						goto BadRequest;
-					}
-
-					// Send the descriptor, limited by request length
-					cbReq = pSetup->wLength;
-					if (cbAvail > cbReq)
-						cbAvail = cbReq;
-					memcpy(GetSetupBuf(), pv, cbAvail);
-					break;
-
-				case USBREQ_Get_Status:
-					pus = (ushort *)GetSetupBuf();
-					if (pSetup->bmRequestType == (USBRT_DirIn | USBRT_TypeStd | USBRT_RecipDevice))
-					{
-						// Device status
-						*pus = (USB_CFG_Attr & USBCFG_PowerSelf) ? 1 : 0;
-					}
-					else if (pSetup->bmRequestType == (USBRT_DirIn | USBRT_TypeStd | USBRT_RecipEp))
-					{
-						// Endpoint status
-						if ((pSetup->wIndex & ~USBRT_Dir_Msk) > USB_MAX_ENDPOINT_NUMBER)
-							goto BadRequest;
-						*pus = (USB->DEVICE.DeviceEndpoint[pSetup->wIndex].EPSTATUS.reg &
-							(pSetup->wIndex & USBRT_DirIn ? USB_DEVICE_EPSTATUS_STALLRQ1_Pos :
-							USB_DEVICE_EPSTATUS_STALLRQ0_Pos)) ? 1 : 0;
-					}
-					else if (pSetup->bmRequestType == (USBRT_DirIn | USBRT_TypeStd | USBRT_RecipIface))
-						// Interface status
-						*pus = 0;
-					else
-						goto BadRequest;
-
-					cbAvail = 2;
-					break;
-
-				default:
-					goto BadRequest;
-				}
-				SendControlPacket(cbAvail);
-				return;
-			}
-		}
-		else
-		{
-			if (NonStandardSetup(pSetup))
-				return;
-		}
-
-BadRequest:
-		USB->DEVICE.DeviceEndpoint[0].EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ0 |
-			USB_DEVICE_EPSTATUSSET_STALLRQ1;
 	}
 
 	//*********************************************************************
@@ -694,4 +371,360 @@ private:
 
 	// Packet size for each endpoint
 	inline static EndpointSize arEpSize[USB_MAX_ENDPOINT_NUMBER + 1];
+};
+
+
+//*************************************************************************
+// USBdeviceIsr template class
+//
+// Interrupt service routine for USBdevice. Passes callbacks to template
+// parameter class T.
+//
+//*************************************************************************
+
+template<class T>
+class USBdeviceIsr : public USBdeviceBase
+{
+
+	//*********************************************************************
+	// These are callbacks implemented in class T, the template argument
+	//*********************************************************************
+
+	/*
+protected:
+	static void DeviceConfigured();
+	static void RxData(int iEp, void *pv, int cb);
+	static void TxDataRequest(int iEp);
+	static void TxDataSent(int iEp);
+	static bool NonStandardSetup(UsbSetupPacket *pSetup);
+	static const void *NonStandardString(int index);
+#ifdef USB_DEV_SerialNo
+	static const StringDesc *GetSerialStrDesc();
+#endif
+#ifdef USB_SOF_INT
+	static void StartOfFrame();
+#endif
+	*/
+
+	//*********************************************************************
+	// Interrupt service routines
+	//*********************************************************************
+
+public:
+	static void UsbIsr() INLINE_ATTR
+	{
+		int		iEp;
+		int		epIntSummary;
+		int		intFlags;
+		int		intEnFlags;
+		UsbDeviceEndpoint	*pEp;
+		UsbDeviceDescBank	*pBank;
+
+		//*****************************************************************
+		// Handle device-level interrupts
+
+		intFlags = USB->DEVICE.INTFLAG.reg;
+		if (intFlags & USB_DEVICE_INTFLAG_EORST)
+		{
+			// Clear the interrupt flag
+			USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_EORST;
+
+			// Interrupts are disabled by reset
+			USB->DEVICE.DeviceEndpoint[0].EPINTENSET.reg = USB_DEVICE_EPINTENSET_RXSTP;
+
+			//*************************************************************
+			// Use ENDPOINT_LIST to generate code to initialize each endpoint
+
+			#define Bulk		BULK
+			#define Interrupt	INTERRUPT
+
+			// Code to initialize IN endpoint:
+			// Set the configuration register
+			// Enable Transfer Complete and Transfer Fail interrupts
+			#define ENDPOINT_IN(ep, trans, size, interval) \
+				pEp = &USB->DEVICE.DeviceEndpoint[ep];						\
+				pEp->EPCFG.reg |= CONCAT(USB_DEVICE_EPCFG_EPTYPE1_, trans); \
+				pEp->EPINTENSET.reg |= USB_DEVICE_EPINTENSET_TRCPT1 |		\
+					USB_DEVICE_EPINTENSET_TRFAIL1;
+
+			// Code to initialize OUT endpoint:
+			// Set the configuration register
+			// Set the BK0RDY bit so it will not be ready to receive
+			// Enable Transfer Complete interrupt
+			#define ENDPOINT_OUT(ep, trans, size, interval)	\
+				pEp = &USB->DEVICE.DeviceEndpoint[ep];						\
+				pEp->EPCFG.reg |= CONCAT(USB_DEVICE_EPCFG_EPTYPE0_, trans); \
+				pEp->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_BK0RDY;		\
+				pEp->EPINTENSET.reg |= USB_DEVICE_EPINTENSET_TRCPT0;
+
+			ENDPOINT_LIST
+
+			#undef ENDPOINT_IN
+			#undef ENDPOINT_OUT
+			#undef Bulk
+			#undef Interrupt
+
+		}
+
+#ifdef USB_SOF_INT
+		if (intFlags & USB_DEVICE_INTFLAG_SOF)
+		{
+			// Clear the interrupt flag
+			USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_SOF;
+
+			T::StartOfFrame();
+		}
+#endif
+
+		// Check for other device-level flags here
+
+		//*****************************************************************
+		// Handle endpoint-level interrupts
+
+		epIntSummary = USB->DEVICE.EPINTSMRY.reg;
+
+		for (iEp = 0; epIntSummary != 0; iEp++, epIntSummary >>= 1)
+		{
+			if ((epIntSummary & 1) == 0)
+				continue;
+
+			pEp = &USB->DEVICE.DeviceEndpoint[iEp];
+			intFlags = pEp->EPINTFLAG.reg;
+			intEnFlags = pEp->EPINTENSET.reg;
+
+			if (iEp == 0)
+			{
+				// Handle control endpoint
+
+				if (intFlags & USB_DEVICE_EPINTFLAG_RXSTP)
+				{
+					// Clear the interrupt flag
+					pEp->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_RXSTP;
+
+					// setup request
+					ProcessSetup();
+				}
+				else if ((intFlags & USB_DEVICE_EPINTFLAG_TRCPT0) &&
+					(intEnFlags & USB_DEVICE_EPINTFLAG_TRCPT0))
+				{
+					// Stop responding to transfer complete
+					pEp->EPINTENCLR.reg = USB_DEVICE_EPINTENSET_TRCPT0;
+
+					// Restore setup data pointer
+					EndpointDesc[0].DeviceDescBank[0].ADDR.reg = GetSetupBufInt();
+
+					// We've received setup data, continue processing
+					ProcessSetup();
+				}
+				else if ((intFlags & USB_DEVICE_EPINTFLAG_TRCPT1) &&
+					(intEnFlags & USB_DEVICE_EPINTFLAG_TRCPT1))
+				{
+					// Stop responding to transfer complete
+					pEp->EPINTENCLR.reg = USB_DEVICE_EPINTENSET_TRCPT1;
+
+					// Enable device address
+					USB->DEVICE.DADD.reg |= USB_DEVICE_DADD_ADDEN;
+				}
+			}
+			else
+			{
+				// Not the control endpoint
+
+				if (intFlags & USB_DEVICE_EPINTFLAG_TRCPT0)
+				{
+					// Clear the interrupt flag
+					pEp->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT0;
+
+					pBank = &EndpointDesc[iEp].DeviceDescBank[0];
+					T::RxData(iEp, (void *)pBank->ADDR.reg, pBank->PCKSIZE.bit.BYTE_COUNT);
+				}
+
+				if (intFlags & USB_DEVICE_EPINTFLAG_TRCPT1)
+				{
+					// Clear the interrupt flag
+					pEp->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT1;
+					T::TxDataSent(iEp);
+				}
+
+				if (intFlags & USB_DEVICE_EPINTFLAG_TRFAIL1)
+				{
+					// Clear the interrupt flag
+					pEp->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRFAIL1;
+					T::TxDataRequest(iEp);
+				}
+			}
+		}
+	}
+
+	//*********************************************************************
+	// Handle setup requests in ISR
+
+protected:
+	static void ProcessSetup()
+	{
+		int		cbReq;
+		int		cbAvail;
+		ushort	*pus;
+		const void *pv;
+		UsbSetupPacket	*pSetup;
+
+		pSetup = GetSetupBuf();
+
+		if (pSetup->Type == USBRT_TypeStd_Val)
+		{
+			// Standard setup
+			if (pSetup->Dir == USBRT_DirOut_Val)
+			{
+				// From host to device
+				switch (pSetup->bRequest)
+				{
+				case USBREQ_Clear_Feature:
+					if (pSetup->wValue == USBFEAT_EndpointHalt &&
+						pSetup->bmRequestType == (USBRT_DirOut | USBRT_TypeStd | USBRT_RecipEp) &&
+						(pSetup->wIndex & ~USBRT_Dir_Msk) <= USB_MAX_ENDPOINT_NUMBER)
+					{
+						USB->DEVICE.DeviceEndpoint[pSetup->wIndex].EPSTATUSCLR.reg =
+							pSetup->wIndex & USBRT_DirIn ? USB_DEVICE_EPSTATUSCLR_STALLRQ1 :
+							USB_DEVICE_EPSTATUSCLR_STALLRQ0;
+						break;
+					}
+					goto BadRequest;
+
+				case USBREQ_Set_Feature:
+					if (pSetup->wValue == USBFEAT_EndpointHalt &&
+						pSetup->bmRequestType == (USBRT_DirOut | USBRT_TypeStd | USBRT_RecipEp) &&
+						(pSetup->wIndex & ~USBRT_Dir_Msk) <= USB_MAX_ENDPOINT_NUMBER)
+					{
+						USB->DEVICE.DeviceEndpoint[pSetup->wIndex].EPSTATUSSET.reg =
+							pSetup->wIndex & USBRT_DirIn ? USB_DEVICE_EPSTATUSSET_STALLRQ1 :
+							USB_DEVICE_EPSTATUSSET_STALLRQ0;
+						break;
+					}
+					goto BadRequest;
+
+				case USBREQ_Set_Address:
+					// Set device address, but don't enable it
+					USB->DEVICE.DADD.reg = USB_DEVICE_DADD_DADD(pSetup->bValue);
+					// Enable the transfer complete interrupt so we can enable the address when we're done
+					// Clear flag first
+					USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT1;
+					USB->DEVICE.DeviceEndpoint[0].EPINTENSET.reg = USB_DEVICE_EPINTENSET_TRCPT1;
+					break;
+
+				case USBREQ_Set_Configuration:
+					// Only 1 configuration supported
+					if (pSetup->bValue > 1)
+						goto BadRequest;
+
+					T::DeviceConfigured();
+					break;
+
+				default:
+					goto BadRequest;
+				}
+				// Accept the packet
+				AckControlPacket();
+				return;
+			}
+			else
+			{
+				// From device to host
+				switch (pSetup->bRequest)
+				{
+				case USBREQ_Get_Descriptor:
+					switch (pSetup->bDescType)
+					{
+					case USBDESC_Device:
+						pv = &DeviceDesc;
+						cbAvail = sizeof DeviceDesc;
+						break;
+
+					case USBDESC_Config:
+						pv = &ConfigDesc;
+						cbAvail = sizeof(UsbConfig);
+						break;
+
+					case USBDESC_String:
+						if (pSetup->bDescIndex < _countof(arpStrDesc))
+							pv = arpStrDesc[pSetup->bDescIndex];
+#ifdef USB_DEV_SerialNo
+						else if (pSetup->bDescIndex == USBSTR_SerialNo)
+							pv = T::GetSerialStrDesc();
+#endif
+						else if ((pv = T::NonStandardString(pSetup->bDescIndex)) == NULL)
+							goto BadRequest;
+
+						cbAvail = ((UsbStringDesc *)pv)->bLength;
+						break;
+
+					default:
+						goto BadRequest;
+					}
+
+					// Send the descriptor, limited by request length
+					cbReq = pSetup->wLength;
+					if (cbAvail > cbReq)
+						cbAvail = cbReq;
+					memcpy(GetSetupBuf(), pv, cbAvail);
+					break;
+
+				case USBREQ_Get_Status:
+					pus = (ushort *)GetSetupBuf();
+					if (pSetup->bmRequestType == (USBRT_DirIn | USBRT_TypeStd | USBRT_RecipDevice))
+					{
+						// Device status
+						*pus = (USB_CFG_Attr & USBCFG_PowerSelf) ? 1 : 0;
+					}
+					else if (pSetup->bmRequestType == (USBRT_DirIn | USBRT_TypeStd | USBRT_RecipEp))
+					{
+						// Endpoint status
+						if ((pSetup->wIndex & ~USBRT_Dir_Msk) > USB_MAX_ENDPOINT_NUMBER)
+							goto BadRequest;
+						*pus = (USB->DEVICE.DeviceEndpoint[pSetup->wIndex].EPSTATUS.reg &
+							(pSetup->wIndex & USBRT_DirIn ? USB_DEVICE_EPSTATUS_STALLRQ1_Pos :
+							USB_DEVICE_EPSTATUS_STALLRQ0_Pos)) ? 1 : 0;
+					}
+					else if (pSetup->bmRequestType == (USBRT_DirIn | USBRT_TypeStd | USBRT_RecipIface))
+						// Interface status
+						*pus = 0;
+					else
+						goto BadRequest;
+
+					cbAvail = 2;
+					break;
+
+				default:
+					goto BadRequest;
+				}
+				SendControlPacket(cbAvail);
+				return;
+			}
+		}
+		else
+		{
+			if (T::NonStandardSetup(pSetup))
+				return;
+		}
+
+BadRequest:
+		USB->DEVICE.DeviceEndpoint[0].EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ0 |
+			USB_DEVICE_EPSTATUSSET_STALLRQ1;
+	}
+};
+
+
+//*************************************************************************
+// USBdevice
+//
+//*************************************************************************
+
+template<class T>
+class USBdevice : public USBdeviceBase
+{
+	//*********************************************************************
+	// The interrupt service routine - class with no data
+	//*********************************************************************
+
+public:
+	static USBdeviceIsr<T>	ISR;
 };
