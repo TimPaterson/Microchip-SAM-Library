@@ -48,8 +48,6 @@
 //****************************************************************************
 // Endpoint description
 
-#define	USB_MAX_ENDPOINT_NUMBER		2
-
 // Endpoint 0
 #define USB_ENDPOINT0_SIZE	8
 

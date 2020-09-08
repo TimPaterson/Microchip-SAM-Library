@@ -76,7 +76,7 @@ public:
 			}
 
 			// Send the descriptor, limited by request length
-			cbAvail = ((UsbStringDesc *)pv)->bLength;
+			cbAvail = ((UsbStringDescHead *)pv)->bLength;
 			cbReq = pSetup->wLength;
 			if (cbAvail > cbReq)
 				cbAvail = cbReq;
@@ -108,9 +108,9 @@ public:
 		T::TxDataRequest(iEp);
 	}
 
-	static void TxDataSent(int iEp)
+	static void TxDataSent(int iEp, int cb)
 	{
-		T::TxDataSent(iEp);
+		T::TxDataSent(iEp, cb);
 	}
 
 	static void StartOfFrame()

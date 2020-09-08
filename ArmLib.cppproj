@@ -175,6 +175,7 @@
     <Folder Include="Usb\" />
     <Folder Include="Usb\Device\" />
     <Folder Include="Usb\Device\FT232" />
+    <Folder Include="Usb\Device\FlashDrive" />
     <Folder Include="Usb\Device\WinUsb\" />
     <Folder Include="Usb\Host\" />
     <Folder Include="Util" />
@@ -216,6 +217,12 @@
     <Compile Include="Usb\Device\FT232\FT232Def.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="Usb\Device\FlashDrive\FlashDrive.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Usb\Device\FlashDrive\FlashDriveDef.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="Usb\Device\SamUsbDevice.h">
       <SubType>compile</SubType>
     </Compile>
@@ -232,6 +239,9 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Usb\UsbCtrl.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Usb\UsbMassStorage.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Util\TimerLib.h">

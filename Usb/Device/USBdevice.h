@@ -23,7 +23,29 @@
 #define MAX_USB_DESCRIPTOR_SIZE	0
 #endif
 
+//*************************************************************************
+// Compute the max USB endpoint number
+// Get the max endpoint nubmer by opening a call to the max() function
+// for each endpoint declaration. It would look like this:
+//   max(ep, max(ep, max(ep, ...
+// Close up the functions with a zero and one ")" per endpoint.
+
 constexpr int max(int a, int b) { return a > b ? a : b; }
+
+#define ENDPOINT_IN(ep, trans, size, interval) max(ep,
+#define ENDPOINT_OUT(ep, trans, size, interval) max(ep,
+
+static constexpr int MaxEndpointNumber = ENDPOINT_LIST 0
+
+#undef ENDPOINT_IN
+#undef ENDPOINT_OUT
+#define ENDPOINT_IN(ep, trans, size, interval) )
+#define ENDPOINT_OUT(ep, trans, size, interval) )
+
+ENDPOINT_LIST;
+
+#undef ENDPOINT_IN
+#undef ENDPOINT_OUT
 
 //*************************************************************************
 // USBdeviceBase Class
@@ -36,6 +58,8 @@ class USBdeviceBase : public UsbCtrl
 	//*********************************************************************
 
 protected:
+	static constexpr int MaxUsbTransferSize = (1 << 14) - 1;	// 14-bit field
+
 	//*************************************************************************
 	// Count number of endpoints
 
@@ -74,12 +98,13 @@ protected:
 	};
 
 	//*************************************************************************
-	// This structure is used for the serial number, if present
+	// Values to set a STALL on and endpoint.
+	// Or them together to set both directions.
 
-	struct StringDesc
+	enum StallDir
 	{
-		UsbStringDesc	desc;
-		char16_t		str[];
+		In = USB_DEVICE_EPSTATUSSET_STALLRQ1,
+		Out = USB_DEVICE_EPSTATUSSET_STALLRQ0
 	};
 
 	//*************************************************************************
@@ -89,6 +114,12 @@ protected:
 	{
 		byte	Bank0;
 		byte	Bank1;
+	};
+
+	enum AutoZlpEnable
+	{
+		ZLP_AutoOff = 0,
+		ZLP_AutoOn = USB_DEVICE_PCKSIZE_AUTO_ZLP,
 	};
 
 	//*********************************************************************
@@ -157,7 +188,7 @@ protected:
 		// Tell USB we're ready to receive handshake packet on Bank 0
 		USB->DEVICE.DeviceEndpoint[0].EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_BK0RDY;
 		// Tell USB to send data on Bank 1
-		SendToHost(0, GetSetupBuf(), cb);
+		SendToHostZlp(0, GetSetupBuf(), cb);
 	}
 
 	// The first call to GetSetupData() enables receiving the OUT data
@@ -196,27 +227,45 @@ protected:
 		return EndpointDesc[0].DeviceDescBank[0].PCKSIZE.bit.BYTE_COUNT;
 	}
 
-	static void SendToHost(int iEp, void *pv, int cb) NO_INLINE_ATTR
+	static void SendToHost(int iEp, void *pv, int cb, AutoZlpEnable zlp) NO_INLINE_ATTR
 	{
 		UsbDeviceDescBank	*pBank;
 
+		if (((int)pv & 0x3) != 0 || cb > MaxUsbTransferSize)
+			DEBUG_PRINT("SendToHost invalid\n");
 		pBank = &EndpointDesc[iEp].DeviceDescBank[1];
 		pBank->ADDR.reg = (uint32_t)pv;
 		pBank->PCKSIZE.reg = USB_DEVICE_PCKSIZE_BYTE_COUNT(cb) |
-			USB_DEVICE_PCKSIZE_SIZE(arEpSize[iEp].Bank1) |
-			USB_DEVICE_PCKSIZE_AUTO_ZLP;
+			USB_DEVICE_PCKSIZE_SIZE(arEpSize[iEp].Bank1) | zlp;
 		USB->DEVICE.DeviceEndpoint[iEp].EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_BK1RDY;
+	}
+
+	static void SendToHost(int iEp, void *pv, int cb) NO_INLINE_ATTR
+	{
+		SendToHost(iEp, pv, cb, ZLP_AutoOff);
+	}
+
+	static void SendToHostZlp(int iEp, void *pv, int cb) NO_INLINE_ATTR
+	{
+		SendToHost(iEp, pv, cb, ZLP_AutoOn);
 	}
 
 	static void ReceiveFromHost(int iEp, void *pv, int cb) NO_INLINE_ATTR
 	{
 		UsbDeviceDescBank	*pBank;
 
+		if (((int)pv & 0x3) != 0 || cb > MaxUsbTransferSize)
+			DEBUG_PRINT("ReceiveFromHost invalid\n");
 		pBank = &EndpointDesc[iEp].DeviceDescBank[0];
 		pBank->ADDR.reg = (uint32_t)pv;
 		pBank->PCKSIZE.reg = USB_DEVICE_PCKSIZE_MULTI_PACKET_SIZE(cb) |
 			USB_DEVICE_PCKSIZE_SIZE(arEpSize[iEp].Bank0);
 		USB->DEVICE.DeviceEndpoint[iEp].EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_BK0RDY;
+	}
+
+	static void SetStall(int iEp, StallDir iStallDir)
+	{
+		USB->DEVICE.DeviceEndpoint[iEp].EPSTATUSSET.reg = iStallDir;
 	}
 
 	//*********************************************************************
@@ -309,17 +358,17 @@ protected:
 #define STRING16(str)	CONCAT(u, str)	// Give string literal 16-bit characters
 
 	// Descriptor 0 had Lang ID
-	inline const static StringDesc LangId =
+	inline const static UsbStringDesc LangId =
 	{
-		{sizeof(UsbStringDesc) + sizeof(ushort), USBDESC_String},
+		{sizeof(UsbStringDescHead) + sizeof(ushort), USBDESC_String},
 		{(char16_t)0x0409}	// English only
 	};
 
 	// Define string descriptors
 	#define DEF_STR_DESC(name, string)			\
-	inline const static StringDesc name =		\
+	inline const static UsbStringDesc name =		\
 	{											\
-		{sizeof(UsbStringDesc) + sizeof(STRING16(string)) - sizeof(char16_t), \
+		{sizeof(UsbStringDescHead) + sizeof(STRING16(string)) - sizeof(char16_t), \
 			USBDESC_String},					\
 		STRING16(string)						\
 	}
@@ -328,7 +377,7 @@ protected:
 	DEF_STR_DESC(ProductStr, USB_DEV_ProductStr);
 
 	// Build table of pointers to string descriptors
-	inline const static StringDesc* const arpStrDesc[] =
+	inline const static UsbStringDesc* const arpStrDesc[] =
 	{
 		&LangId,
 		&VendorStr,
@@ -367,10 +416,10 @@ private:
 	inline static uint32_t arSetupBuf[SetupBufSize / sizeof(uint32_t)];
 
 	// Endpoint descriptors for MCU
-	inline static UsbDeviceDescriptor EndpointDesc[USB_MAX_ENDPOINT_NUMBER + 1];
+	inline static UsbDeviceDescriptor EndpointDesc[MaxEndpointNumber + 1];
 
 	// Packet size for each endpoint
-	inline static EndpointSize arEpSize[USB_MAX_ENDPOINT_NUMBER + 1];
+	inline static EndpointSize arEpSize[MaxEndpointNumber + 1];
 };
 
 
@@ -395,11 +444,11 @@ protected:
 	static void DeviceConfigured();
 	static void RxData(int iEp, void *pv, int cb);
 	static void TxDataRequest(int iEp);
-	static void TxDataSent(int iEp);
+	static void TxDataSent(int iEp, int cb);
 	static bool NonStandardSetup(UsbSetupPacket *pSetup);
 	static const void *NonStandardString(int index);
 #ifdef USB_DEV_SerialNo
-	static const StringDesc *GetSerialStrDesc();
+	static const UsbStringDesc *GetSerialStrDesc();
 #endif
 #ifdef USB_SOF_INT
 	static void StartOfFrame();
@@ -532,6 +581,8 @@ public:
 
 				if (intFlags & USB_DEVICE_EPINTFLAG_TRCPT0)
 				{
+					// OUT endpoint completed
+					//
 					// Clear the interrupt flag
 					pEp->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT0;
 
@@ -541,13 +592,19 @@ public:
 
 				if (intFlags & USB_DEVICE_EPINTFLAG_TRCPT1)
 				{
+					// IN endpoint completed
+					//
 					// Clear the interrupt flag
 					pEp->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT1;
-					T::TxDataSent(iEp);
+
+					pBank = &EndpointDesc[iEp].DeviceDescBank[1];
+					T::TxDataSent(iEp, pBank->PCKSIZE.bit.BYTE_COUNT);
 				}
 
 				if (intFlags & USB_DEVICE_EPINTFLAG_TRFAIL1)
 				{
+					// IN endpoint failed
+					//
 					// Clear the interrupt flag
 					pEp->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRFAIL1;
 					T::TxDataRequest(iEp);
@@ -581,9 +638,9 @@ protected:
 				case USBREQ_Clear_Feature:
 					if (pSetup->wValue == USBFEAT_EndpointHalt &&
 						pSetup->bmRequestType == (USBRT_DirOut | USBRT_TypeStd | USBRT_RecipEp) &&
-						(pSetup->wIndex & ~USBRT_Dir_Msk) <= USB_MAX_ENDPOINT_NUMBER)
+						(pSetup->wIndex & ~USBRT_Dir_Msk) <= MaxEndpointNumber)
 					{
-						USB->DEVICE.DeviceEndpoint[pSetup->wIndex].EPSTATUSCLR.reg =
+						USB->DEVICE.DeviceEndpoint[pSetup->wIndex & ~USBRT_Dir_Msk].EPSTATUSCLR.reg =
 							pSetup->wIndex & USBRT_DirIn ? USB_DEVICE_EPSTATUSCLR_STALLRQ1 :
 							USB_DEVICE_EPSTATUSCLR_STALLRQ0;
 						break;
@@ -593,9 +650,9 @@ protected:
 				case USBREQ_Set_Feature:
 					if (pSetup->wValue == USBFEAT_EndpointHalt &&
 						pSetup->bmRequestType == (USBRT_DirOut | USBRT_TypeStd | USBRT_RecipEp) &&
-						(pSetup->wIndex & ~USBRT_Dir_Msk) <= USB_MAX_ENDPOINT_NUMBER)
+						(pSetup->wIndex & ~USBRT_Dir_Msk) <= MaxEndpointNumber)
 					{
-						USB->DEVICE.DeviceEndpoint[pSetup->wIndex].EPSTATUSSET.reg =
+						USB->DEVICE.DeviceEndpoint[pSetup->wIndex & ~USBRT_Dir_Msk].EPSTATUSSET.reg =
 							pSetup->wIndex & USBRT_DirIn ? USB_DEVICE_EPSTATUSSET_STALLRQ1 :
 							USB_DEVICE_EPSTATUSSET_STALLRQ0;
 						break;
@@ -605,6 +662,7 @@ protected:
 				case USBREQ_Set_Address:
 					// Set device address, but don't enable it
 					USB->DEVICE.DADD.reg = USB_DEVICE_DADD_DADD(pSetup->bValue);
+					DEBUG_PRINT("USB address = %i\n", pSetup->bValue);
 					// Enable the transfer complete interrupt so we can enable the address when we're done
 					// Clear flag first
 					USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT1;
@@ -654,7 +712,7 @@ protected:
 						else if ((pv = T::NonStandardString(pSetup->bDescIndex)) == NULL)
 							goto BadRequest;
 
-						cbAvail = ((UsbStringDesc *)pv)->bLength;
+						cbAvail = ((UsbStringDesc *)pv)->desc.bLength;
 						break;
 
 					default:
@@ -678,7 +736,7 @@ protected:
 					else if (pSetup->bmRequestType == (USBRT_DirIn | USBRT_TypeStd | USBRT_RecipEp))
 					{
 						// Endpoint status
-						if ((pSetup->wIndex & ~USBRT_Dir_Msk) > USB_MAX_ENDPOINT_NUMBER)
+						if ((pSetup->wIndex & ~USBRT_Dir_Msk) > MaxEndpointNumber)
 							goto BadRequest;
 						*pus = (USB->DEVICE.DeviceEndpoint[pSetup->wIndex].EPSTATUS.reg &
 							(pSetup->wIndex & USBRT_DirIn ? USB_DEVICE_EPSTATUS_STALLRQ1_Pos :

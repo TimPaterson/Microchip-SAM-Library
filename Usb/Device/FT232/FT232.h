@@ -62,10 +62,7 @@ public:
 
 protected:
 	static constexpr int InBufSize = FTDI_OUT_BUF_SIZE;	// host to device
-
-	// Setting the buffer size to less than the packet size saves time
-	// by not needing zero-length packets.
-	static constexpr int OutBufSize = FTDI_IN_BUF_SIZE - 1;	// device to host
+	static constexpr int OutBufSize = FTDI_IN_BUF_SIZE;	// device to host
 
 	//*************************************************************************
 	// USB vendor-specific control requests
@@ -106,6 +103,42 @@ protected:
 		PC_None,
 		PC_BaudRate,
 		PC_PinStatus,
+	};
+
+	//*********************************************************************
+	// Buffer Manager
+
+	template<int cbBuf>
+	class BufMgr
+	{
+public:
+		void Init()					{ ulStatus = 0; }
+		void *GetCur()				{ return &arBuf[bCur]; }
+		void Swap()					{ bCur ^= 1; }
+		// count of bytes in use only used for transmit buffers
+		int GetInUse()				{ return usInUse; }
+		void SetInUse(int cb)		{ usInUse = cb; }
+		bool GetIsSending()			{ return fSending; }
+		void SetIsSending(bool f)	{ fSending = f; }
+
+protected:
+		union
+		{
+			uint32_t	ulStatus;
+			struct
+			{
+				ushort	usInUse;
+				byte	bCur;
+				volatile bool fSending;
+			};
+		};
+		uint32_t	arBuf[2][(cbBuf + sizeof(uint32_t) - 1)/sizeof(uint32_t)];
+	};
+
+	struct SetupDataSrc
+	{
+		int		cb;
+		const ushort *pus;
 	};
 
 	//*********************************************************************
@@ -221,43 +254,6 @@ public:
 		 { PinStatus = (PinStatusBits)((PinStatus & ~STAT_Inputs) | (pins & STAT_Inputs)); }
 
 	//*********************************************************************
-	// Local Types
-	//*********************************************************************
-
-	template<int cbBuf>
-	class BufMgr
-	{
-public:
-		void Init()					{ ulStatus = 0; }
-		void *GetCur()				{ return &arBuf[bCur]; }
-		void Swap()					{ bCur ^= 1; }
-		// count of bytes in use only used for transmit buffers
-		int GetInUse()				{ return usInUse; }
-		void SetInUse(int cb)		{ usInUse = cb; }
-		bool GetIsSending()			{ return fSending; }
-		void SetIsSending(bool f)	{ fSending = f; }
-
-protected:
-		union
-		{
-			uint32_t	ulStatus;
-			struct
-			{
-				ushort	usInUse;
-				byte	bCur;
-				volatile bool fSending;
-			};
-		};
-		uint32_t	arBuf[2][(cbBuf + sizeof(uint32_t) - 1)/sizeof(uint32_t)];
-	};
-
-	struct SetupDataSrc
-	{
-		int		cb;
-		const ushort *pus;
-	};
-
-	//*********************************************************************
 	// Implementation of callbacks from USBdevice class
 	//*********************************************************************
 
@@ -282,7 +278,7 @@ public:
 	{
 	}
 
-	static void TxDataSent(int iEp)
+	static void TxDataSent(int iEp, int cb)
 	{
 		bufTrans.SetIsSending(false);
 	}
@@ -307,7 +303,7 @@ public:
 		byte	*pb;
 		ushort	*pus;
 		PinStatusBits		iStat;
-		const StringDesc	*pStr;
+		const UsbStringDesc	*pStr;
 		const SetupDataSrc	*pSrc;
 
 		switch (pSetup->bmRequestType)
@@ -428,7 +424,7 @@ SendBytes:
 		return false;
 	}
 
-	static const StringDesc *GetSerialStrDesc() NO_INLINE_ATTR
+	static const UsbStringDesc *GetSerialStrDesc() NO_INLINE_ATTR
 	{
 		if (uSerialNum == 0)
 		{
@@ -525,9 +521,9 @@ protected:
 
 	inline static uint32_t uSerialNum;
 
-	inline static StringDesc SerialNumber =
+	inline static UsbStringDesc SerialNumber =
 	{
-		{sizeof(UsbStringDesc) + sizeof(STRING16(SERIAL_NUM)) - sizeof(char16_t),
+		{sizeof(UsbStringDescHead) + sizeof(STRING16(SERIAL_NUM)) - sizeof(char16_t),
 			USBDESC_String},
 		STRING16(SERIAL_NUM)
 	};

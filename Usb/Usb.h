@@ -172,10 +172,16 @@ struct UsbConfigDesc
 // String Descriptor
 //
 
-struct UsbStringDesc
+struct UsbStringDescHead
 {
 	byte	bLength;
 	byte	bDescType;
+};
+
+struct UsbStringDesc
+{
+	UsbStringDescHead	desc;
+	char16_t			str[];
 };
 
 //****************************************************************************
