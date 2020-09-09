@@ -12,6 +12,9 @@
 
 class UsbCtrl
 {
+protected:
+	static constexpr int MaxUsbTransferSize = (1 << 14) - 1;	// 14-bit field
+
 public:
 	static void Init()
 	{

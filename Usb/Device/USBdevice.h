@@ -57,9 +57,6 @@ class USBdeviceBase : public UsbCtrl
 	// Local Types
 	//*********************************************************************
 
-protected:
-	static constexpr int MaxUsbTransferSize = (1 << 14) - 1;	// 14-bit field
-
 	//*************************************************************************
 	// Count number of endpoints
 
@@ -456,7 +453,7 @@ protected:
 	*/
 
 	//*********************************************************************
-	// Interrupt service routines
+	// Interrupt service routine
 	//*********************************************************************
 
 public:
