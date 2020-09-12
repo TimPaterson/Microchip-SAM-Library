@@ -241,6 +241,9 @@
     <Compile Include="Usb\Host\USBhost.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="Usb\Host\UsbHostDriver.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="Usb\Usb.h">
       <SubType>compile</SubType>
     </Compile>

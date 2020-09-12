@@ -63,23 +63,33 @@ struct UsbSetupPacket
 
 #define USBRT_Type_Pos			5		// bit position
 #define USBRT_Type_Msk			(3 << USBRT_Type_Pos)
+#define USBRT_Type(value)		(USBRT_Type_Msk & ((value) << USBRT_Type_Pos))
 #define USBRT_TypeStd_Val		0
 #define USBRT_TypeClass_Val		1
 #define USBRT_TypeVendor_Val	2
-#define USBRT_TypeStd			(USBRT_TypeStd_Val << USBRT_Type_Pos)
-#define USBRT_TypeClass			(USBRT_TypeClass_Val << USBRT_Type_Pos)
-#define USBRT_TypeVendor		(USBRT_TypeVendor_Val << USBRT_Type_Pos)
+#define USBRT_TypeStd			USBRT_Type(USBRT_TypeStd_Val)
+#define USBRT_TypeClass			USBRT_Type(USBRT_TypeClass_Val)
+#define USBRT_TypeVendor		USBRT_Type(USBRT_TypeVendor_Val)
 
 #define USBRT_Recip_Pos			0		// bit position
 #define USBRT_Recip_Msk			(0x1F << USBRT_Recip_Pos)
+#define USBRT_Recip(value)		(USBRT_Recip_Msk & ((value) << USBRT_Recip_Pos))
 #define USBRT_RecipDevice_Val	0
 #define USBRT_RecipIface_Val	1
 #define USBRT_RecipEp_Val		2
 #define USBRT_RecipOther_Val	3
-#define USBRT_RecipDevice		(USBRT_RecipDevice_Val << USBRT_Recip_Pos)
-#define USBRT_RecipIface		(USBRT_RecipIface_Val << USBRT_Recip_Pos)
-#define USBRT_RecipEp			(USBRT_RecipEp_Val << USBRT_Recip_Pos)
-#define USBRT_RecipOther		(USBRT_RecipOther_Val << USBRT_Recip_Pos)
+#define USBRT_RecipDevice		USBRT_Recip(USBRT_RecipDevice_Val)
+#define USBRT_RecipIface		USBRT_Recip(USBRT_RecipIface_Val)
+#define USBRT_RecipEp			USBRT_Recip(USBRT_RecipEp_Val)
+#define USBRT_RecipOther		USBRT_Recip(USBRT_RecipOther_Val)
+
+// Bits in wValue
+#define USBVAL_Index_Pos		0
+#define USBVAL_Index_Msk		(0xFF << USBVAL_Index_Pos)
+#define USBVAL_Index(value)		(USBVAL_Index_Msk & ((value) << USBVAL_Index_Pos))
+#define USBVAL_Type_Pos			8
+#define USBVAL_Type_Msk			(0xFF << USBVAL_Type_Pos)
+#define USBVAL_Type(value)		(USBVAL_Type_Msk & ((value) << USBVAL_Type_Pos))
 
 // Features for Set/Get Feature
 #define USBFEAT_EndpointHalt		0
