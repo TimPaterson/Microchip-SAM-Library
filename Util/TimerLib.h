@@ -22,10 +22,8 @@
 // First parameter is a TC or TCC, second is prescale
 //
 #define DECLARE_TIMER(ctr, prescale) \
-	IntervalTimer<#ctr[2] == 'C',	\
-	(#ctr[2] == 'C' ? #ctr[3] : #ctr[2]) - '0', \
-	#ctr[2] == 'C' ? CONCAT(TCC_CTRLA_PRESCALER_DIV, prescale) : CONCAT(TC_CTRLA_PRESCALER_DIV, prescale), \
-	prescale>
+	IntervalTimer<#ctr[2] == 'C', (#ctr[2] == 'C' ? #ctr[3] : #ctr[2]) - '0', prescale, \
+	#ctr[2] == 'C' ? CONCAT(TCC_CTRLA_PRESCALER_DIV, prescale) : CONCAT(TC_CTRLA_PRESCALER_DIV, prescale)>
 
 
 //****************************************************************************

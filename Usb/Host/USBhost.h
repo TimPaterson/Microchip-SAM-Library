@@ -16,6 +16,8 @@
 #define USB_DRIVER_LIST(...)	UsbHostDriver *USBhost::arHostDriver[] = {__VA_ARGS__};
 
 class EnumerationDriver;
+void HexDump(byte *pb, int cb);
+
 
 //*************************************************************************
 // USBhost Class
@@ -26,6 +28,9 @@ class USBhost : public UsbCtrl
 	//*********************************************************************
 	// Types
 	//*********************************************************************
+
+	static constexpr int DelayResetToGetDescriptorMs = 150;
+
 public:
 	union ControlPacket
 	{
@@ -59,10 +64,10 @@ protected:
 	enum UsbConnectionState
 	{
 		USBST_Detached,
+		USBST_Configured,
 		USBST_Attached,
 		USBST_Default,
 		USBST_Address,
-		USBST_Configured,
 	};
 
 	enum SetupState
@@ -97,20 +102,38 @@ public:
 	{
 		// Set VBUSOK
 		USB->HOST.CTRLB.reg = USB_HOST_CTRLB_VBUSOK;
-		stSetup = SS_Idle;
 	}
 
 	static void Disable()
 	{
 		// Turn off VBUSOK
 		USB->HOST.CTRLB.reg = 0;
+		stSetup = SS_Idle;
+		stEnum = USBST_Detached;
 	}
 
-	void Process()
+	void Process() NO_INLINE_ATTR
 	{
+		switch (stEnum)
+		{
+		case USBST_Default:
+			if (stSetup != SS_Idle || !tmrEnum.CheckDelay_ms(DelayResetToGetDescriptorMs))
+				return;
+
+			// Initialize Pipe 0 for control
+			PipeDesc[0].HostDescBank[0].PCKSIZE.reg =
+				USB_HOST_PCKSIZE_BYTE_COUNT(sizeof(SetupBuffer.packet)) | USB_HOST_PCKSIZE_SIZE_8;
+
+			pDriver = arHostDriver[0];
+			pDriver->m_bAddr = 0;	// default address
+			pDriver->m_PackSize = USB_HOST_PCKSIZE_SIZE_8_Val;
+			// Get 8 bytes of the device descriptor
+			GetDescriptor(pDriver, &SetupBuffer, USBVAL_Type(USBDESC_Device), 8);
+			break;
+		}
 	}
 
-	static bool ControlTransfer(UsbHostDriver *pDriver, void *pv, uint64_t u64packet)
+	static bool ControlTransfer(UsbHostDriver *pDriver, void *pv, uint64_t u64packet) NO_INLINE_ATTR
 	{
 		if (stSetup != SS_Idle)
 			return false;
@@ -120,7 +143,7 @@ public:
 		return true;
 	}
 
-	static bool GetDescriptor(UsbHostDriver *pDriver, void *pv, ushort wValue, ushort wLength)
+	static bool GetDescriptor(UsbHostDriver *pDriver, void *pv, ushort wValue, ushort wLength) NO_INLINE_ATTR
 	{
 		if (stSetup != SS_Idle)
 			return false;
@@ -140,7 +163,7 @@ public:
 	//*********************************************************************
 
 protected:
-	static void StartSetup(UsbHostDriver *pDriver, void *pv)
+	static void StartSetup(UsbHostDriver *pDriver, void *pv) NO_INLINE_ATTR
 	{
 		PipeDesc[0].HostDescBank[0].ADDR.reg = (uint32_t)&SetupBuffer;
 		PipeDesc[0].HostDescBank[0].CTRL_PIPE.reg = pDriver->m_bAddr;
@@ -161,6 +184,19 @@ protected:
 		// Send the packet
 		USB->HOST.HostPipe[0].PSTATUSSET.reg = USB_HOST_PSTATUSSET_BK0RDY;
 		USB->HOST.HostPipe[0].PSTATUSCLR.reg = USB_HOST_PSTATUSCLR_PFREEZE;
+	}
+
+	static void SetupComplete(int cbTransfer)
+	{
+		DEBUG_PRINT("Setup complete\n");
+		HexDump((byte *)&USBhost::SetupBuffer, cbTransfer);
+
+		switch (stEnum)
+		{
+		case USBST_Default:
+			stEnum = USBST_Address;
+			break;
+		}
 	}
 
 	//*********************************************************************
@@ -189,17 +225,8 @@ public:
 
 			DEBUG_PRINT("USB reset done\n");
 
-			state = USBST_Default;
-
-			// Initialize Pipe 0 for control
-			PipeDesc[0].HostDescBank[0].PCKSIZE.reg = 
-				USB_HOST_PCKSIZE_BYTE_COUNT(sizeof(SetupBuffer.packet)) | USB_HOST_PCKSIZE_SIZE_8;
-
-			pDriver = arHostDriver[0];
-			pDriver->m_bAddr = 0;	// default address
-			pDriver->m_PackSize = USB_HOST_PCKSIZE_SIZE_8_Val;
-			// Get 8 bytes of the device descriptor
-			GetDescriptor(pDriver, &SetupBuffer, USBVAL_Type(USBDESC_Device), 8);
+			stEnum = USBST_Default;
+			tmrEnum.Start();
 		}
 
 		if (intFlags & USB_HOST_INTFLAG_DCONN)
@@ -208,6 +235,8 @@ public:
 			USB->HOST.INTFLAG.reg = USB_HOST_INTFLAG_DCONN;
 
 			DEBUG_PRINT("Device connected\n");
+
+			stEnum = USBST_Attached;
 
 			// Device is connected, reset it
 			USB->HOST.CTRLB.reg	 = USB_HOST_CTRLB_VBUSOK | USB_HOST_CTRLB_BUSRESET;
@@ -221,6 +250,7 @@ public:
 			DEBUG_PRINT("Device disconnected\n");
 
 			// Device is disconnected
+			stEnum = USBST_Detached;
 		}
 
 		// Check for other host-level flags here
@@ -295,11 +325,11 @@ public:
 				{
 					// Clear the interrupt flag
 					pPipe->PINTFLAG.reg = USB_HOST_PINTFLAG_TRCPT0;
-					DEBUG_PRINT("Control data received\n");
 
 					switch (stSetup)
 					{
 					case SS_GetStatus:
+						DEBUG_PRINT("Control data sent\n");
 						cbTransfer = pPipeDesc->HostDescBank[0].PCKSIZE.bit.BYTE_COUNT;
 GetStatus:
 						pPipe->PCFG.reg = USB_HOST_PCFG_PTYPE_CONTROL | 
@@ -311,6 +341,7 @@ GetStatus:
 						break;
 
 					case SS_SendStatus:
+						DEBUG_PRINT("Control data received\n");
 						cbTransfer = pPipeDesc->HostDescBank[0].PCKSIZE.bit.MULTI_PACKET_SIZE;
 						pPipe->PCFG.reg = USB_HOST_PCFG_PTYPE_CONTROL | 
 							USB_HOST_PCFG_PTOKEN_OUT;
@@ -323,7 +354,7 @@ GetStatus:
 						break;
 
 					case SS_WaitAck:
-						// Success with Setup transaction
+						DEBUG_PRINT("ACK sent/received\n");
 						pDriver->SetupTransactionComplete(cbTransfer);
 						stSetup = SS_Idle;
 						return;
@@ -349,7 +380,17 @@ GetStatus:
 				{
 					// Clear the interrupt flag
 					pPipe->PINTFLAG.reg = USB_HOST_PINTFLAG_TRFAIL;
-					DEBUG_PRINT("Control FAIL received\n");
+					DEBUG_PRINT("NAK received\n");
+				}
+
+				if (intFlags & USB_HOST_PINTFLAG_PERR)
+				{
+					byte	status;
+
+					// Clear the interrupt flag
+					pPipe->PINTFLAG.reg = USB_HOST_PINTFLAG_PERR;
+					status = pPipeDesc->HostDescBank[0].STATUS_PIPE.reg;
+					DEBUG_PRINT("Pipe error: %02X\n", status);
 
 					stSetup = SS_Idle;
 				}
@@ -383,7 +424,8 @@ protected:
 	inline static void *pvSetupData;
 	inline static UsbHostDriver *pDriver;
 	inline static int cbTransfer;
-	inline static byte state;
+	inline static Timer tmrEnum;
+	inline static byte stEnum;
 	inline static byte stSetup;
 
 	//*********************************************************************
@@ -397,8 +439,6 @@ protected:
 // UsbHostDriver used during enumeration
 //****************************************************************************
 
-void HexDump(byte *pb, int cb);
-
 class EnumerationDriver : public UsbHostDriver
 {
 	virtual bool IsDriverForDevice(ulong ulVidPid, UsbConfigDesc *pConfig)
@@ -408,8 +448,7 @@ class EnumerationDriver : public UsbHostDriver
 
 	virtual void SetupTransactionComplete(int cbTransfer)
 	{
-		DEBUG_PRINT("Setup complete\n");
-		HexDump((byte *)&USBhost::SetupBuffer, cbTransfer);
+		USBhost::SetupComplete(cbTransfer);
 	}
 
 	virtual void TransferComplete(int iPipe)
