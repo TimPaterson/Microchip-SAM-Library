@@ -3,10 +3,6 @@
 //
 // Created 4/5/2017 12:11:28 PM by Tim
 //
-// To use this class, two things must be defined before it is included:
-// TimerClockFreq	- type double with the clock rate of the timer
-// GetTickCount		- function returning Timer_t of tick count
-//
 //****************************************************************************
 
 #pragma once
@@ -15,6 +11,44 @@
 #define Timer_t	uint16_t
 #endif
 
+
+//****************************************************************************
+// This macro uses the IntervalTimer template below to create a timer
+// Example:
+//
+// typedef DECLARE_TIMER(TC3, 16) Timer;
+// Timer::Init();	// initialized the hardware
+// 
+// First parameter is a TC or TCC, second is prescale
+//
+#define DECLARE_TIMER(ctr, prescale) \
+	IntervalTimer<#ctr[2] == 'C',	\
+	(#ctr[2] == 'C' ? #ctr[3] : #ctr[2]) - '0', \
+	#ctr[2] == 'C' ? CONCAT(TCC_CTRLA_PRESCALER_DIV, prescale) : CONCAT(TC_CTRLA_PRESCALER_DIV, prescale), \
+	prescale>
+
+
+//****************************************************************************
+// These helpers are UNDEFed at the end
+#define TCC_PTR(i)		((Tcc *)((byte *)TCC0 + ((byte *)TCC1 - (byte *)TCC0) * i))
+#ifdef TC0
+#define TC_PTR(i)		((TcCount16 *)((byte *)TC0 + ((byte *)TC1 - (byte *)TC0) * i))
+#else
+#define TC_PTR(i)		((TcCount16 *)((byte *)TC3 + ((byte *)TC4 - (byte *)TC3) * (i - 3)))
+#endif
+
+
+//****************************************************************************
+// Define_Timer template
+//
+// Assumes a timer/counter has been initialized and a function provided to
+// get the current value.
+//
+// Template parameters:
+//
+// TimerClockFreq	- clock rate of the timer
+// GetTickCount		- function returning Timer_t of tick count
+// CpuFreq			- CPU frequency, defaults to F_CPU
 
 template <ulong TimerClockFreq, Timer_t (*GetTickCount)(), ulong CpuFreq
 #ifdef F_CPU
@@ -259,3 +293,105 @@ protected:
 protected:
 	Timer_t	m_uLastTime;	
 };
+
+
+//****************************************************************************
+// IntervalTimer_t template
+//
+// Provides the code to initialize a timer and read its value. Used as a
+// stepping stone to IntervalTimer, which combines IntervaTimer_t with
+// Define_Timer.
+
+template<bool fIsTcc, int iTc, int iPrescale, int iPrescaleVal>
+class IntervalTimer_t
+{
+public:
+	static void Init()
+	{
+		// Clocking setup. SAM C and SAM D are different
+		//
+#if	defined(GCLK_PCHCTRL_GEN_GCLK0)	// SAM C
+		if (fIsTcc)
+		{
+			// Enable clock
+			MCLK->APBCMASK.reg |= MCLK_APBCMASK_TCC0 << iTc;
+			// Clock it with GCLK0
+			GCLK->PCHCTRL[TCC0_GCLK_ID + iTc / 2].reg = GCLK_PCHCTRL_GEN_GCLK0 | GCLK_PCHCTRL_CHEN;
+		}
+		else
+		{
+			// Enable clock
+			MCLK->APBCMASK.reg |= MCLK_APBCMASK_TC0 << iTc;
+			// Clock it with GCLK0
+			GCLK->PCHCTRL[TC0_GCLK_ID + iTc / 2].reg = GCLK_PCHCTRL_GEN_GCLK0 | GCLK_PCHCTRL_CHEN;
+		}
+#else	// SAM D
+		// Enable clock
+		PM->APBCMASK.reg |= 1 << (PM_APBCMASK_TCC0_Pos + iTc);
+
+		// Clock it with GCLK0
+		GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 |
+			(GCLK_CLKCTRL_ID_TCC0_TCC1 + iTc / 2);
+#endif
+
+		// TC/TCC setup
+		//
+		if (fIsTcc)
+		{
+			// Set up counter
+			TCC_PTR(iTc)->CTRLA.reg = iPrescaleVal | TCC_CTRLA_PRESCSYNC_PRESC | TCC_CTRLA_ENABLE;
+		}
+		else
+		{
+#ifdef TC_READREQ_RCONT	// SAM D TC only
+			// Set up automatic synchronization
+			TC_PTR(iTc)->READREQ.reg = TC_READREQ_RCONT | offsetof(TcCount16, COUNT);
+#endif
+			// Set up counter
+			TC_PTR(iTc)->CTRLA.reg = iPrescaleVal | TC_CTRLA_PRESCSYNC_PRESC | TC_CTRLA_ENABLE;
+		}
+	}
+
+	//************************************************************************
+
+	static Timer_t GetTickCount()
+#ifndef TC_READREQ_RCONT	// inline it on SAM D TC
+	NO_INLINE_ATTR
+#endif
+	{
+		if (fIsTcc)
+		{
+			// Must synchronize first
+			TCC_PTR(iTc)->CTRLBSET.reg = TCC_CTRLBSET_CMD_READSYNC;
+			while (TCC_PTR(iTc)->SYNCBUSY.reg & (TCC_SYNCBUSY_CTRLB | TCC_SYNCBUSY_COUNT));
+			return TCC_PTR(iTc)->COUNT.reg;
+		}
+		else
+		{
+#ifndef TC_READREQ_RCONT
+			// Must synchronize first
+			TC_PTR(iTc)->CTRLBSET.reg = TC_CTRLBSET_CMD_READSYNC;
+			while (TC_PTR(iTc)->SYNCBUSY.reg & (TC_SYNCBUSY_CTRLB | TC_SYNCBUSY_COUNT));
+#endif
+			return TC_PTR(iTc)->COUNT.reg;
+		}
+	}
+};
+
+
+//****************************************************************************
+// IntervalTimer template
+//
+// Combines Define_Timer and IntervalTimer_t to provide the complete timer.
+//
+// Use the DECLARE_TIMER macro above to create one.
+
+template<bool fIsTcc, int iTc, int iPrescale, int iPrescaleVal>
+class IntervalTimer :
+	public IntervalTimer_t<fIsTcc, iTc, iPrescale, iPrescaleVal>, 
+	public Define_Timer<F_CPU / iPrescale, IntervalTimer_t<fIsTcc, iTc, iPrescale, iPrescaleVal>::GetTickCount>
+{
+};
+
+#undef TC_PTR
+#undef TCC_PTR
