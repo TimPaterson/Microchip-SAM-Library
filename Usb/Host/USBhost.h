@@ -12,8 +12,10 @@
 #include "UsbHostDriver.h"
 
 
-#define DEFINE_USB_ISR()		void USB_Handler() { USBhost::UsbIsr(); }
-#define USB_DRIVER_LIST(...)	UsbHostDriver *USBhost::arHostDriver[] = {__VA_ARGS__};
+#define DEFINE_USB_ISR()			void USB_Handler() { USBhost::UsbIsr(); }
+#define USB_DRIVER_LIST(enm, ...)	\
+	USBhost::DeviceDrivers_t USBhost::DeviceDrivers = \
+	{static_cast<EnumerationDriver *>(enm), {__VA_ARGS__}};
 
 class EnumerationDriver;
 void HexDump(byte *pb, int cb);
@@ -29,14 +31,20 @@ class USBhost : public UsbCtrl
 	// Types
 	//*********************************************************************
 
-	static constexpr int DelayConnectToResetMs = 500;
-	static constexpr int DelayResetToGetDescriptorMs = 500;
+	static constexpr int DelayConnectToResetMs = 200;
+	static constexpr int DelayResetToGetDescriptorMs = 200;
 
 public:
 	union ControlPacket
 	{
 		UsbSetupPacket	packet;
 		uint64_t		u64;
+	};
+
+	struct DeviceDrivers_t
+	{
+		UsbHostDriver	*EnumDriver;
+		UsbHostDriver	*arHostDriver[HOST_DRIVER_COUNT];
 	};
 		
 protected:
@@ -172,8 +180,9 @@ protected:
 			USB_HOST_PCFG_PTOKEN_SETUP;
 		USB->HOST.HostPipe[0].PINTENSET.reg = USB_HOST_PINTFLAG_TXSTP |
 			USB_HOST_PINTFLAG_STALL | USB_HOST_PINTFLAG_PERR;
-		// Send the packet
+		// Send the packet, making sure data toggle is zero
 		USB->HOST.HostPipe[0].PSTATUSSET.reg = USB_HOST_PSTATUSSET_BK0RDY;
+		USB->HOST.HostPipe[0].PSTATUSCLR.reg = USB_HOST_PSTATUSSET_DTGL;
 		USB->HOST.HostPipe[0].PSTATUSCLR.reg = USB_HOST_PSTATUSCLR_PFREEZE;
 	}
 
@@ -182,7 +191,7 @@ protected:
 		UsbHostDriver	*pDriver;
 		ControlPacket	pkt;
 
-		pDriver = arHostDriver[0];
+		pDriver = DeviceDrivers.EnumDriver;
 
 		switch (stEnum)
 		{
@@ -216,7 +225,7 @@ protected:
 			break;
 
 		case ES_DevDesc:
-			GetDescriptor(pDriver, &SetupBuffer, USBVAL_Type(USBDESC_Device), sizeof SetupBuffer);
+			GetDescriptor(pDriver, &SetupBuffer, USBVAL_Type(USBDESC_Device), sizeof(UsbDeviceDesc));
 			break;
 
 		case ES_ConfigDesc:
@@ -233,7 +242,7 @@ protected:
 		int		cb;
 		UsbHostDriver *pDriver;
 
-		pDriver = arHostDriver[0];
+		pDriver = DeviceDrivers.EnumDriver;
 
 		DEBUG_PRINT("Setup complete\n");
 		if (cbTransfer != 0)
@@ -259,7 +268,9 @@ protected:
 			break;
 
 		case ES_DevDesc:
-			// UNDONE: Get data from device descriptor
+			devVidPid = (SetupBuffer.descDev.idProduct << 16) | SetupBuffer.descDev.idVendor;
+			devClass = (SetupBuffer.descDev.bDeviceProtocol << 16) | 
+				(SetupBuffer.descDev.bDeviceSubclass << 8) | SetupBuffer.descDev.bDeviceClass;
 			stEnum = ES_ConfigDesc;
 			break;
 
@@ -423,6 +434,8 @@ GetStatus:
 							USB_DEVICE_PCKSIZE_MULTI_PACKET_SIZE(0) | 
 							USB_DEVICE_PCKSIZE_SIZE(pDriver->m_PackSize);
 						// BK0RDY is zero, indicating bank is empty and ready to receive
+						// Data toggle is 1 for IN Setup
+						pPipe->PSTATUSSET.reg = USB_HOST_PSTATUSSET_DTGL;
 						break;
 
 					case SS_SendStatus:
@@ -435,7 +448,8 @@ GetStatus:
 							USB_DEVICE_PCKSIZE_SIZE(pDriver->m_PackSize) |
 							USB_DEVICE_PCKSIZE_AUTO_ZLP;
 						// Set BK0RDY to indicate bank is full and ready to send
-						pPipe->PSTATUSSET.reg = USB_HOST_PSTATUSSET_BK0RDY;
+						// Data toggle is 1 for OUT Setup
+						pPipe->PSTATUSSET.reg = USB_HOST_PSTATUSSET_BK0RDY | USB_HOST_PSTATUSSET_DTGL;
 						break;
 
 					case SS_WaitAck:
@@ -469,13 +483,21 @@ GetStatus:
 					pPipe->PINTFLAG.reg = USB_HOST_PINTFLAG_PERR;
 
 					status = pPipeDesc->HostDescBank[0].STATUS_PIPE.reg;
+					pPipeDesc->HostDescBank[0].STATUS_PIPE.reg = 0;
 					if (status & USB_HOST_STATUS_PIPE_TOUTER)
 						DEBUG_PRINT("Timeout\n");
 					else
 					{
 						DEBUG_PRINT("Pipe error: %02X\n", status);
-						stSetup = SS_Idle;
 					}
+
+					if (stEnum == ES_ResetComplete)
+					{
+						// Try reset again
+						stEnum = ES_Connected;
+						tmrEnum.Start();
+					}
+					stSetup = SS_Idle;
 				}
 			}
 			else
@@ -495,7 +517,7 @@ GetStatus:
 
 	// Note this is NOT inline. It is defined in a code file using
 	// the USB_DRIVER_LIST() macro.
-	static UsbHostDriver *arHostDriver[HOST_DRIVER_COUNT];
+	static DeviceDrivers_t DeviceDrivers;
 
 	//*********************************************************************
 	// static (RAM) data
@@ -506,6 +528,8 @@ protected:
 	inline static PipeDescriptor PipeDesc[8];
 	inline static void *pvSetupData;
 	inline static int cbTransfer;
+	inline static uint devVidPid;
+	inline static uint devClass;
 	inline static Timer tmrEnum;
 	inline static byte stEnum;
 	inline static byte stSetup;
