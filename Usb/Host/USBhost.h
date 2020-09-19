@@ -134,7 +134,7 @@ public:
 		stEnum = ES_Idle;
 	}
 
-	void Process()
+	static void Process()
 	{
 		UsbHostDriver	*pDriver;
 
@@ -145,9 +145,11 @@ public:
 			pDriver->Process();
 	}
 
+	static bool IsControlPipeReady()	{ return stSetup != SS_Idle; }
+
 	static bool ControlTransfer(UsbHostDriver *pDriver, void *pv, uint64_t u64packet) NO_INLINE_ATTR
 	{
-		if (stSetup != SS_Idle)
+		if (IsControlPipeReady())
 			return false;
 
 		SetupBuffer.u64 = u64packet;
@@ -157,32 +159,28 @@ public:
 
 	static bool GetDescriptor(UsbHostDriver *pDriver, void *pv, ushort wValue, ushort wLength) NO_INLINE_ATTR
 	{
-		if (stSetup != SS_Idle)
-			return false;
+		USBhost::ControlPacket	pkt;
 
 		// Initialize Setup packet
-		SetupBuffer.packet.bmRequestType =  USBRT_DirIn | USBRT_TypeStd | USBRT_RecipDevice;
-		SetupBuffer.packet.bRequest = USBREQ_Get_Descriptor;
-		SetupBuffer.packet.wValue = wValue;
-		SetupBuffer.packet.wIndex = 0;
-		SetupBuffer.packet.wLength = wLength;
-		StartSetup(pDriver, pv);
-		return true;
+		pkt.packet.bmRequestType =  USBRT_DirIn | USBRT_TypeStd | USBRT_RecipDevice;
+		pkt.packet.bRequest = USBREQ_Get_Descriptor;
+		pkt.packet.wValue = wValue;
+		pkt.packet.wIndex = 0;
+		pkt.packet.wLength = wLength;
+		return ControlTransfer(pDriver, pv, pkt.u64);
 	}
 
 	static bool SetConfiguration(UsbHostDriver *pDriver, ushort wValue) NO_INLINE_ATTR
 	{
-		if (stSetup != SS_Idle)
-			return false;
+		USBhost::ControlPacket	pkt;
 
 		// Initialize Setup packet
-		SetupBuffer.packet.bmRequestType =  USBRT_DirOut | USBRT_TypeStd | USBRT_RecipDevice;
-		SetupBuffer.packet.bRequest = USBREQ_Set_Configuration;
-		SetupBuffer.packet.wValue = wValue;
-		SetupBuffer.packet.wIndex = 0;
-		SetupBuffer.packet.wLength = 0;
-		StartSetup(pDriver, NULL);
-		return true;
+		pkt.packet.bmRequestType =  USBRT_DirOut | USBRT_TypeStd | USBRT_RecipDevice;
+		pkt.packet.bRequest = USBREQ_Set_Configuration;
+		pkt.packet.wValue = wValue;
+		pkt.packet.wIndex = 0;
+		pkt.packet.wLength = 0;
+		return ControlTransfer(pDriver, NULL, pkt.u64);
 	}
 
 	static int RequestPipe(UsbHostDriver *pDriver, UsbEndpointDesc *pEp) NO_INLINE_ATTR
@@ -299,7 +297,7 @@ public:
 	//*********************************************************************
 
 protected:
-	static void StartSetup(UsbHostDriver *pDriver, void *pv) NO_INLINE_ATTR
+	static void StartSetup(UsbHostDriver *pDriver, void *pv)
 	{
 		if (pDriver->m_bAddr != 0)
 			DEBUG_PRINT("Start setup ... ");

@@ -366,7 +366,9 @@ enum ScsiInquiryResponseDataFormat
 
 struct ScsiFixedFormatSenseData
 {
-	byte	bResponseCode;
+	byte	bResponseCode:7;
+	byte	bValid:1;
+
 	byte	Reserved1;
 	byte	bSenseKey;
 	uibe32	dInformation;
@@ -380,10 +382,9 @@ struct ScsiFixedFormatSenseData
 
 enum ScsiSenseResponseCode
 {
-	SCSISRC_Valid = 0x80,
-	SCSISRC_CurrentError = SCSISRC_Valid | 0x70,
-	SCSISRC_DeferredError = SCSISRC_Valid | 0x71,
-	SCSISRC_VendorSpecific = SCSISRC_Valid | 0x7F,
+	SCSISRC_CurrentError = 0x70,
+	SCSISRC_DeferredError = 0x71,
+	SCSISRC_VendorSpecific = 0x7F,
 };
 
 enum ScsiSenseKey

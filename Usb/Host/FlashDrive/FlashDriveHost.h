@@ -23,7 +23,7 @@ class FlashDriveHost : public UsbHostDriver
 	// Types
 	//*********************************************************************
 
-	static constexpr int TestReadyIntervalMs = 100;
+	static constexpr int TestReadyIntervalMs = 1;
 
 	struct CapacityList
 	{
@@ -171,9 +171,10 @@ class FlashDriveHost : public UsbHostDriver
 		m_stCommand = CS_WaitData;
 
 		m_pvTransfer = &bufCommand;
-		FillCmdWrapper(sizeof(ScsiFixedFormatSenseData), SCSIOP_TestUnitReady);
+		FillCmdWrapper(0, SCSIOP_TestUnitReady);
 		bufCommand.Cmd.bCbwCbLength = sizeof(ScsiTestUnitReady);
 
+		DEBUG_PRINT("Testing ready\n");
 		UsbSendData(&bufCommand, sizeof bufCommand.Cmd);
 	}
 
@@ -251,8 +252,7 @@ class FlashDriveHost : public UsbHostDriver
 		switch (m_stDrive)
 		{
 		case DS_WaitConfig:
-			m_stDrive = DS_ReadMbr;
-			//m_stDrive = DS_TestReady;
+			m_stDrive = DS_TestReady;
 			m_tmr.Start();
 			break;
 		}
@@ -294,13 +294,20 @@ class FlashDriveHost : public UsbHostDriver
 				switch (m_cmdCur)
 				{
 				case SCSIOP_RequestSense:
-					DEBUG_PRINT("Sense Key: %X, ASC: %02X, ASCQ: %02X\n", 
-						bufCommand.Sense.bSenseKey, bufCommand.Sense.bAdditionalSenseCode,
-						bufCommand.Sense.bAdditionalSenseCodeQualifier);
+					if (bufCommand.Sense.bResponseCode == SCSISRC_CurrentError)
+					{
+						DEBUG_PRINT("Sense Key: %X, ASC: %02X, ASCQ: %02X\n", 
+							bufCommand.Sense.bSenseKey, bufCommand.Sense.bAdditionalSenseCode,
+							bufCommand.Sense.bAdditionalSenseCodeQualifier);
+					}
+					else
+						DEBUG_PRINT("Invalid sense response\n");
+
 					if (m_stDrive == DS_WaitReady)
 					{
 						m_stDrive = DS_TestReady;	// keep trying
 						m_tmr.Start();
+						break;
 					}
 					// UNDONE: report command failed
 					break;
@@ -320,6 +327,12 @@ class FlashDriveHost : public UsbHostDriver
 
 	virtual void TransferError(int iPipe, TransferErrorCode err)
 	{
+		if (iPipe == 0)
+		{
+			// UNDONE: Error on control pipe
+			return;
+		}
+
 		if (err == TEC_Stall)
 		{
 			if (m_stCommand == CS_CheckStatusRetry && m_bPipeCur == iPipe)
@@ -346,8 +359,10 @@ class FlashDriveHost : public UsbHostDriver
 			return;
 
 		case CS_StartClearStall:
-			if (ClearStall(m_bPipeCur))
-				m_stCommand = CS_WaitClearStall;
+			// Must set next state before call
+			m_stCommand = CS_WaitClearStall;
+			if (!ClearStall(m_bPipeCur))
+				m_stCommand = CS_StartClearStall;	// change state back
 			return;
 
 		case CS_StartReset:
@@ -357,20 +372,26 @@ class FlashDriveHost : public UsbHostDriver
 			pkt.packet.wValue = 0;
 			pkt.packet.wIndex = 0;
 			pkt.packet.wLength = 0;
-			if (USBhost::ControlTransfer(this, NULL, pkt.u64))
-				m_stCommand = CS_WaitReset;
+			// Must set next state before call
+			m_stCommand = CS_WaitReset;
+			if (!USBhost::ControlTransfer(this, NULL, pkt.u64))
+				m_stCommand = CS_StartReset;	// change state back
 			return;
 
 		case CS_StartClearIn:
 			// Clear IN pipe
-			if (ClearStall(m_bInPipe))
-				m_stCommand = CS_WaitClearIn;
+			// Must set next state before call
+			m_stCommand = CS_WaitClearIn;
+			if (!ClearStall(m_bInPipe))
+				m_stCommand = CS_StartClearIn;	// change state back
 			return;
 
 		case CS_StartClearOut:
 			// Clear OUT pipe
-			if (ClearStall(m_bOutPipe))
-				m_stCommand = CS_WaitClearOut;
+			// Must set next state before call
+			m_stCommand = CS_WaitClearOut;
+			if (!ClearStall(m_bOutPipe))
+				m_stCommand = CS_StartClearOut;	// change state back
 			return;
 		}
 
@@ -393,8 +414,8 @@ class FlashDriveHost : public UsbHostDriver
 
 		case DS_ReadMbr:
 			DEBUG_PRINT("Reading MBR\n");
-			ReadData(0, 1, m_arDiskBuffer);
 			m_stDrive = DS_WaitMbr;
+			ReadData(0, 1, m_arDiskBuffer);
 			break;
 
 		case DS_HaveMbr:
