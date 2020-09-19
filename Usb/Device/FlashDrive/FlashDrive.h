@@ -213,7 +213,7 @@ public:
 					Buffer.CapList.Head.Reserved[0] = 0;
 					Buffer.CapList.Head.Reserved[1] = 0;
 					Buffer.CapList.Head.Reserved[2] = 0;
-					Buffer.CapList.Head.bListLength = 1;
+					Buffer.CapList.Head.bListLength = sizeof(ScsiCapacityDescriptor);
 					Buffer.CapList.Desc.dNumberOfBlocks = T::GetLastLba() + 1;
 					Buffer.CapList.Desc.bDescriptorCode = T::MediaPresent() ? SCSICDC_Formatted : SCSICDC_NoMedia;
 					Buffer.CapList.Desc.BlockLength = T::GetBlockSize();

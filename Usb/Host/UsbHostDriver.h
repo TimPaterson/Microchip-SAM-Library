@@ -10,21 +10,35 @@
 
 class USBhost;
 
+enum TransferErrorCode
+{
+	TEC_None,
+	TEC_NoDriver,
+	TEC_Stall,
+	TEC_Error,
+};
+
 class UsbHostDriver
 {
 	//*********************************************************************
-	// virtual functions called from ISR
+	// virtual functions
 	//*********************************************************************
 
-	virtual bool IsDriverForDevice(ulong ulVidPid, UsbConfigDesc *pConfig) = 0;
+	//  called from ISR
+	virtual UsbHostDriver *IsDriverForDevice(ulong ulVidPid, ulong ulClass, UsbConfigDesc *pConfig) = 0;
 	virtual void SetupTransactionComplete(int cbTransfer) = 0;
-	virtual void TransferComplete(int iPipe) = 0;
+	virtual void TransferComplete(int iPipe, int cbTranfer) = 0;
+	virtual void TransferError(int iPipe, TransferErrorCode err) = 0;
+	
+	// called from main level
+	virtual void Process() = 0;
 
 	//*********************************************************************
 	// Instance data
 	//*********************************************************************
 
-	byte	m_bAddr;
+	UsbHostDriver	*m_pDriverNext;
+	byte			m_bAddr;
 	PipePacketSize	m_PackSize;
 
 	//*********************************************************************

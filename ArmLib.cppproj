@@ -178,6 +178,7 @@
     <Folder Include="Usb\Device\FlashDrive" />
     <Folder Include="Usb\Device\WinUsb\" />
     <Folder Include="Usb\Host\" />
+    <Folder Include="Usb\Host\FlashDrive" />
     <Folder Include="Util" />
   </ItemGroup>
   <ItemGroup>
@@ -233,6 +234,9 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Usb\Device\WinUsb\WinUsb.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Usb\Host\FlashDrive\FlashDriveHost.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Usb\Host\SamUsbHost.h">

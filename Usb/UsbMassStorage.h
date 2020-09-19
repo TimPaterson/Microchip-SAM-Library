@@ -31,11 +31,24 @@ class uibe16
 	ushort	val;
 
 public:
+	uibe16 operator=(uint u)
+	{
+		val = __builtin_bswap16(u);
+		return *this;
+	}
+
 	operator uint() { return __builtin_bswap16(val); }
 #else
 	byte	val[2];
 
 public:
+	uibe16 operator=(uint u)
+	{
+		val[1] = u;
+		val[0] = u >> 8;
+		return *this;
+	}
+
 	operator uint() { return ((uint)val[0] << 8) | val[1]; }
 #endif
 };
@@ -62,8 +75,8 @@ public:
 	uibe24 operator=(uint u)
 	{
 		val[2] = u;
-		val[1] = (u >> 8);
-		val[0] = (u >> 16);
+		val[1] = u >> 8;
+		val[0] = u >> 16;
 		return *this;
 	}
 
