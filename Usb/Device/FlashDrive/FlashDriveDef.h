@@ -18,7 +18,7 @@
 // USB Device Descriptor
 
 #define USB_DEV_UsbVer		USB_VER_2p0
-#define	USB_DEV_Class		USBDEVCLASS_None
+#define	USB_DEV_Class		USBCLASS_None
 #define USB_DEV_Subclass	0
 #define	USB_DEV_Protocol	0
 #define USB_DEV_SerialNo	// defining it means GetSerialStrDesc() implemented

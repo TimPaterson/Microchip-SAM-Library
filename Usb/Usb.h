@@ -92,9 +92,12 @@ struct UsbSetupPacket
 #define USBVAL_Type(value)		(USBVAL_Type_Msk & ((value) << USBVAL_Type_Pos))
 
 // Features for Set/Get Feature
-#define USBFEAT_EndpointHalt		0
-#define USBFEAT_DeviceRemoteWakeup	1
-#define USBFEAT_TestMode			2
+enum UsbFeature
+{
+	USBFEAT_EndpointHalt,
+	USBFEAT_DeviceRemoteWakeup,
+	USBFEAT_TestMode,
+};
 
 //****************************************************************************
 // Structure definitions for USB descriptors
@@ -118,7 +121,8 @@ enum UsbDescType
 	USBDESC_InterfacePower,
 	USBDESC_Otg,
 	USBDESC_Debug,
-	USBDESC_InterfaceAssociation
+	USBDESC_InterfaceAssociation,
+	USBDESC_Hid = 33,
 };
 
 
@@ -144,10 +148,22 @@ struct UsbDeviceDesc
 	byte	bNumConfigs;
 };
 
-// Device classes
-#define USBDEVCLASS_None			0
-#define USBDEVCLASS_Communications	2
-#define USBDEVCLASS_Hub				9
+enum UsbClass
+{
+	USBCLASS_None,
+	USBCLASS_Audio,
+	USBCLASS_Cdc,
+	USBCLASS_Hid,
+	USBCLASS_Physical = 5,
+	USBCLASS_Image,
+	USBCLASS_Printer,
+	USBCLASS_MassStorage,
+	USBCLASS_Hub,
+	USBCLASS_CdcData,
+	USBCLASS_SmartCard,
+	USBCLASS_Security = 13,
+	USBCLASS_Video
+};
 
 //****************************************************************************
 // Configuration Descriptor
@@ -211,23 +227,6 @@ struct UsbInterfaceDesc
 	byte	iInterface;
 };
 
-// Interface classes
-enum UsbClass
-{
-	USBCLASS_Audio = 1,
-	USBCLASS_Cdc,
-	USBCLASS_Hid,
-	USBCLASS_Physical = 5,
-	USBCLASS_Image,
-	USBCLASS_Printer,
-	USBCLASS_MassStorage,
-	USBCLASS_Hub,
-	USBCLASS_CdcData,
-	USBCLASS_SmartCard,
-	USBCLASS_Security = 13,
-	USBCLASS_Video
-};
-
 //****************************************************************************
 // Endpoint Descriptor
 //
@@ -254,5 +253,38 @@ struct UsbEndpointDesc
 #define USBEP_Control	0
 #define USBEP_Bulk		2
 #define	USBEP_Interrupt	3
+
+//****************************************************************************
+// HID class
+//
+
+enum UsbHidReq
+{
+	USBHIDREQ_Get_Report = 1,
+	USBHIDREQ_Get_Idle,
+	USBHIDREQ_Get_Protocol,
+	USBHIDREQ_Set_Report = 9,
+	USBHIDREQ_Set_Idle,
+	USBHIDREQ_Set_Protocol,
+};
+
+enum UsbHidSubclass
+{
+	USBHIDSUB_NoBoot,
+	USBHIDSUB_Boot,
+};
+
+enum UsbHidProtocol
+{
+	USBHIDPROTO_Keyboard = 1,
+	USBHIDPROTO_Mouse,
+};
+
+enum UsbHidReportProtocol
+{
+	USBHIDRP_Boot,
+	USBHIDRP_Report,
+};
+
 
 #pragma pack(pop)

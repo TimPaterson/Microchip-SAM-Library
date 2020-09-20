@@ -178,7 +178,7 @@
     <Folder Include="Usb\Device\FlashDrive" />
     <Folder Include="Usb\Device\WinUsb\" />
     <Folder Include="Usb\Host\" />
-    <Folder Include="Usb\Host\FlashDrive" />
+    <Folder Include="Usb\Host\Drivers" />
     <Folder Include="Util" />
   </ItemGroup>
   <ItemGroup>
@@ -236,7 +236,10 @@
     <Compile Include="Usb\Device\WinUsb\WinUsb.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="Usb\Host\FlashDrive\FlashDriveHost.h">
+    <Compile Include="Usb\Host\Drivers\FlashDriveHost.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Usb\Host\Drivers\KeyboardHost.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Usb\Host\SamUsbHost.h">

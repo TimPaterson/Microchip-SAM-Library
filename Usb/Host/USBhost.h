@@ -40,6 +40,10 @@ class USBhost : public UsbCtrl
 	// Types
 	//*********************************************************************
 
+public:
+	static constexpr uint FrameCountMask = 0x7FF;
+
+private:
 	static constexpr int DelayConnectToResetMs = 200;
 	static constexpr int DelayResetToGetDescriptorMs = 200;
 
@@ -219,6 +223,8 @@ public:
 
 				cfg |= pEp->bEndpointAddr & USBEP_DirIn ? USB_HOST_PCFG_PTOKEN_IN : USB_HOST_PCFG_PTOKEN_OUT;
 				pPipe->PCFG.reg = cfg;
+				if (pEp->bmAttributes == USBEP_Interrupt)
+					pPipe->BINTERVAL.reg = pEp->bInterval;
 				pPipe->PINTENSET.reg = USB_HOST_PINTFLAG_TRCPT0 |
 					USB_HOST_PINTFLAG_STALL | USB_HOST_PINTFLAG_PERR;
 				return i;
@@ -279,8 +285,6 @@ public:
 		PipeDescriptor	*pDesc;
 		UsbHostPipe		*pPipe;
 
-		DEBUG_PRINT("Receive data pipe %i ... ", iPipe);
-
 		pDesc = &PipeDesc[iPipe];
 		pPipe = &USB->HOST.HostPipe[iPipe];
 
@@ -290,6 +294,11 @@ public:
 
 		// Clear BK0RDY to indicate bank is empty and ready to receive
 		pPipe->PSTATUSCLR.reg = USB_HOST_PSTATUSCLR_PFREEZE | USB_HOST_PSTATUSSET_BK0RDY;
+	}
+
+	static uint GetFrameNumber()
+	{
+		return USB->HOST.FNUM.bit.FNUM;
 	}
 
 	//*********************************************************************
@@ -752,6 +761,7 @@ class EnumerationDriver : public UsbHostDriver
 
 	virtual void TransferError(int iPipe, TransferErrorCode err)
 	{
+		DEBUG_PRINT("No driver selected\n");
 	}
 
 	virtual void Process()
