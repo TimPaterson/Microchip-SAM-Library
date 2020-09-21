@@ -761,7 +761,23 @@ class EnumerationDriver : public UsbHostDriver
 
 	virtual void TransferError(int iPipe, TransferErrorCode err)
 	{
-		DEBUG_PRINT("No driver selected\n");
+		switch (err)
+		{
+		case TEC_NoDriver:
+			DEBUG_PRINT("No driver selected\n");
+			break;
+
+		case TEC_Stall:
+			DEBUG_PRINT("Endpoint STALL during enumeration\n");
+			break;
+
+		case TEC_Error:
+			DEBUG_PRINT("Transfer error during enumeration\n");
+			break;
+
+		case  TEC_None:
+			break;
+		}
 	}
 
 	virtual void Process()

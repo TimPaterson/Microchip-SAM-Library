@@ -242,6 +242,9 @@
     <Compile Include="Usb\Host\Drivers\KeyboardHost.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="Usb\Host\Drivers\MouseHost.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="Usb\Host\SamUsbHost.h">
       <SubType>compile</SubType>
     </Compile>
