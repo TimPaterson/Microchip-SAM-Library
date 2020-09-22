@@ -34,12 +34,21 @@ class UsbHostDriver
 	virtual void Process() = 0;
 
 	//*********************************************************************
+	// Instance methods
+	//*********************************************************************
+
+public:
+	bool IsLoaded()	{ return m_fDriverLoaded; }
+
+	//*********************************************************************
 	// Instance data
 	//*********************************************************************
 
+protected:
 	UsbHostDriver	*m_pDriverNext;
 	byte			m_bAddr;
 	PipePacketSize	m_PackSize;
+	bool			m_fDriverLoaded;
 
 	//*********************************************************************
 	// Allow host to access stuff

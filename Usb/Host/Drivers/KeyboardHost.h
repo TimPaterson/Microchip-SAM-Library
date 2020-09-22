@@ -16,6 +16,57 @@ class KeyboardHost : public UsbHostDriver
 	// Types
 	//*********************************************************************
 
+public:
+	// These bits correspond to the indicator lights
+	enum KeyLocks
+	{
+		KL_NumLock = 0x01,
+		KL_CapsLock = 0x02,
+		KL_ScrollLock = 0x04,
+	};
+
+	enum ControlKeys
+	{
+		NoKey = 0xFF,
+		CD32 = 0,
+		CR = 0x0D,
+		ESC = 0x1B,
+		BS = 0x08,
+		TAB = 0x09,
+		// Function keys are consecutive
+		F1 = 0x81,
+		F2,
+		F3,
+		F4,
+		F5,
+		F6,
+		F7,
+		F8,
+		F9,
+		F10,
+		F11,
+		F12,
+		PrtSc = 0xA0,
+		Pause,
+		Ins,
+		Home,
+		PgUp,
+		Del,
+		End,
+		PgDn,
+		Up,
+		Dn,
+		Lf,
+		Rt,
+
+		LockPrefix = 0xF0,
+		CapsLk = LockPrefix | KL_CapsLock,
+		ScrLk = LockPrefix | KL_ScrollLock,
+		NumLk = LockPrefix | KL_NumLock,
+	};
+
+protected:
+	static constexpr int FirstKbKeycode = 4;	// 'a' is keycode 4
 	static constexpr int PacketBufferSize = 8;
 
 	enum DevState
@@ -27,28 +78,51 @@ class KeyboardHost : public UsbHostDriver
 		DS_WaitProtocol,
 		DS_Poll,
 		DS_HaveKey,
+		DS_SetIndicators,
 	};
 
-	struct KeyBuffer
+	enum KeyModifiers
 	{
-		union
-		{
-			byte	bModifiers;
-			struct 
-			{
-				byte	Lctl:1;
-				byte	Lshift:1;
-				byte	Lalt:1;
-				byte	Lgui:1;
-				byte	Rctl:1;
-				byte	Rshift:1;
-				byte	Ralt:1;
-				byte	Rgui:1;
-			};
-		};
+		KM_Lctl = 0x01,
+		KM_Lshift = 0x02,
+		KM_Lalt = 0x04,
+		KM_Lgui = 0x08,
+		KM_Rctl = 0x10,
+		KM_Rshift = 0x20,
+		KM_Ralt = 0x40,
+		KM_Rgui = 0x80,
+
+		KM_Ctl = KM_Lctl | KM_Rctl,
+		KM_Shift = KM_Lshift | KM_Rshift,
+		KM_Alt = KM_Lalt | KM_Ralt,
+		KM_Gui = KM_Lgui | KM_Rgui,
+	};
+
+	struct UsbKeyBuffer
+	{
+		byte	bModifiers;
 		byte	Reserved;
 		byte	Keys[6];
 	};
+
+	union UsbOutBuffer
+	{
+		byte	bOut;
+		ushort	usOut;
+		ulong	ulOut;
+	};
+
+	//*********************************************************************
+	// Public interface
+	//*********************************************************************
+
+public:
+	byte GetKey()
+	{
+		byte bKey = m_bKeyReady;
+		m_bKeyReady = NoKey;
+		return bKey;
+	}
 
 	//*********************************************************************
 	// Override of virtual functions
@@ -89,6 +163,8 @@ class KeyboardHost : public UsbHostDriver
 						return NULL;
 					m_bInPipe = iPipe;
 					m_stDev = DS_SetConfig;
+					m_bKeyReady = NoKey;
+					m_bKeyLocks = 0;	// CONSIDER: user-settable default?
 					DEBUG_PRINT("Keyboard driver loaded\n");
 					return this;
 				}
@@ -108,7 +184,7 @@ class KeyboardHost : public UsbHostDriver
 			break;
 
 		case DS_WaitProtocol:
-			m_stDev = DS_Poll;
+			m_stDev = DS_SetIndicators;
 			InitPolling();
 			break;
 		}
@@ -116,7 +192,7 @@ class KeyboardHost : public UsbHostDriver
 
 	virtual void TransferComplete(int iPipe, int cbTransfer)
 	{
-		if (cbTransfer >= 3 && m_bufKey.Keys[0] != 0)
+		if (cbTransfer >= 3 && m_bufUsbKey.Keys[0] != 0)
 			m_stDev = DS_HaveKey;
 		InitPolling();
 	}
@@ -129,6 +205,7 @@ class KeyboardHost : public UsbHostDriver
 
 	virtual void Process()
 	{
+		byte	bKey;
 		USBhost::ControlPacket	pkt;
 
 		switch (m_stDev)
@@ -154,13 +231,23 @@ class KeyboardHost : public UsbHostDriver
 
 		case DS_Poll:
 			if (IsPollTime())
-				USBhost::ReceiveData(m_bInPipe, &m_bufKey, PacketBufferSize);
+				USBhost::ReceiveData(m_bInPipe, &m_bufUsbKey, PacketBufferSize);
 			break;
 
 		case DS_HaveKey:
-			DEBUG_PRINT("Key: %i\n", m_bufKey.Keys[0]);
-			m_stDev = DS_Poll;
+			bKey = MapKey(m_bufUsbKey.Keys[0], m_bufUsbKey.bModifiers);
+			if (bKey == LockPrefix)
+				m_stDev = DS_SetIndicators;
+			else
+			{
+				m_bKeyReady = bKey;
+				m_stDev = DS_Poll;
+			}
 			break;
+
+		case DS_SetIndicators:
+			if (SetIndicators(m_bKeyLocks))
+				m_stDev = DS_Poll;
 		}
 	}
 
@@ -184,15 +271,129 @@ protected:
 		return false;
 	}
 
+	byte MapKey(uint uCode, uint uMod)
+	{
+		if (uCode < FirstKbKeycode)
+			return NoKey;
+
+		uCode -= FirstKbKeycode;
+
+		// Is it keypad?
+		if (uCode > _countof(mapKbKeycode) + ('z' - 'a'))
+		{
+			uCode -= _countof(mapKbKeycode) + ('z' - 'a') + 1;
+			if (uCode >= _countof(mapKpNumLockKeycode))
+				uCode = NoKey;
+			else if (m_bKeyLocks & KL_NumLock)
+				uCode = mapKpNumLockKeycode[uCode];
+			else
+				uCode = mapKpEditKeycode[uCode];
+			return uCode;
+		}
+
+		// First block of codes are the letters 'a' - 'z'
+		if (uCode <= 'z' - 'a')
+		{
+			uCode += 'a';
+			if (((uMod & KM_Shift) != 0) ^ ((m_bKeyLocks & KL_CapsLock) != 0))
+				uCode -= ('a' - 'A');
+		}
+		else
+		{
+			uCode -= 'z' - 'a' + 1;
+
+			if ((uMod & KM_Shift) && uCode < _countof(mapKbShift))
+				uCode = mapKbShift[uCode];
+			else
+			{
+				uCode = mapKbKeycode[uCode];
+
+				// Check for CapLock, etc.
+				if (uCode >= LockPrefix && uCode != NoKey)
+				{
+					uCode &= ~LockPrefix;
+					m_bKeyLocks ^= uCode;
+					return LockPrefix;
+				}
+			}
+		}
+
+		if (uMod & KM_Ctl)
+		{
+			if (uCode >= 0x40 && uCode <= 0x7F)
+				uCode &= ~0x60;
+			else if (uCode == 0x13)	// CR mapped to LF
+				uCode = 0x0A;
+			else if (uCode == 0x08)	// BS mapped to 0x7F
+				uCode = 0x7F;
+			else
+				uCode = NoKey;
+		}
+
+		return uCode;
+	}
+
+	bool SetIndicators(byte bIndicators)
+	{
+		USBhost::ControlPacket	pkt;
+
+		pkt.packet.bmRequestType = USBRT_DirOut | USBRT_TypeClass | USBRT_RecipIface;
+		pkt.packet.bRequest = USBHIDREQ_Set_Report;
+		pkt.packet.wValue = USBHIDRT_Output;
+		pkt.packet.wIndex = 0;	// interface no.
+		pkt.packet.wLength = 1;
+		m_bufUsbOut.bOut = bIndicators;
+		return USBhost::ControlTransfer(this, &m_bufUsbOut, pkt.u64);
+	}
+
+	//*********************************************************************
+	// const (flash) data
+	//*********************************************************************
+
+	// Table for keys on the main keyboard (not keypad)
+	inline const static byte mapKbKeycode[] =
+	{
+		'1','2','3','4','5','6','7','8','9','0',
+		CR, ESC, BS, TAB,' ','-','=','[',']','\\',
+		CD32,';','\'','`',',','.','/',CapsLk,
+		F1,F2,F3,F4,F5,F6,F7,F8,F9,F10,F11,F12,
+		PrtSc,ScrLk,Pause,Ins,Home,PgUp,Del,End,PgDn,
+		Rt,Lf,Dn,Up,NumLk,
+	};
+
+	inline const static byte mapKbShift[] =
+	{
+		'!','@','#','$','%','^','&','*','(',')',
+		CR, ESC, BS, TAB,' ','_','+','{','}','|',
+		CD32,':','"','~','<','>','?',
+	};
+
+	// Table for keys on the keypad w/Num Lock
+	inline const static byte mapKpNumLockKeycode[]
+	{
+		'/','*','-','+',CR,
+		'1','2','3','4','5','6','7','8','9','0','.'
+	};
+
+	// Table for keys on the keypad w/o Num Lock
+	inline const static byte mapKpEditKeycode[]
+	{
+		'/','*','-','+',CR,
+		End,Dn,PgDn,Lf,'5',Rt,Home,Up,PgUp,Ins,Del
+	};
+
 	//*********************************************************************
 	// Instance data
 	//*********************************************************************
 
 	// USB buffer must 4-byte aligned
-	KeyBuffer	m_bufKey ALIGNED_ATTR(4);
+	UsbKeyBuffer ALIGNED_ATTR(4)	m_bufUsbKey;
+	UsbOutBuffer ALIGNED_ATTR(4)	m_bufUsbOut;
 
 	bool	m_fPollStart;
 	byte	m_stDev;
 	byte	m_bConfig;
 	byte	m_bInPipe;
+	byte	m_bKeyLocks;
+	byte	m_bKeyReady;
 };

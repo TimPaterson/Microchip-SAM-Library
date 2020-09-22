@@ -286,5 +286,12 @@ enum UsbHidReportProtocol
 	USBHIDRP_Report,
 };
 
+enum UsbHidReportType
+{
+	USBHIDRT_Input = 0x100,
+	USBHIDRT_Output = 0x200,
+	USBHIDRT_Feature = 0x300,
+};
+
 
 #pragma pack(pop)

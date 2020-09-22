@@ -14,7 +14,7 @@
 
 #define DEFINE_USB_ISR()			void USB_Handler() { USBhost::UsbIsr(); }
 #define USB_DRIVER_LIST(enm, ...)	\
-	USBhost::DeviceDrivers_t USBhost::DeviceDrivers = \
+	USBhost::DeviceDrivers_t const USBhost::DeviceDrivers = \
 	{static_cast<EnumerationDriver *>(enm), {__VA_ARGS__}};
 
 class EnumerationDriver;
@@ -132,10 +132,10 @@ public:
 
 	static void Disable()
 	{
+		Disconnect();
+
 		// Turn off VBUSOK
 		USB->HOST.CTRLB.reg = 0;
-		stSetup = SS_Idle;
-		stEnum = ES_Idle;
 	}
 
 	static void Process()
@@ -149,11 +149,11 @@ public:
 			pDriver->Process();
 	}
 
-	static bool IsControlPipeReady()	{ return stSetup != SS_Idle; }
+	static bool IsControlPipeReady()	{ return stSetup == SS_Idle; }
 
 	static bool ControlTransfer(UsbHostDriver *pDriver, void *pv, uint64_t u64packet) NO_INLINE_ATTR
 	{
-		if (IsControlPipeReady())
+		if (!IsControlPipeReady())
 			return false;
 
 		SetupBuffer.u64 = u64packet;
@@ -190,7 +190,8 @@ public:
 	static int RequestPipe(UsbHostDriver *pDriver, UsbEndpointDesc *pEp) NO_INLINE_ATTR
 	{
 		int		i;
-		int		cfg;
+		uint	cfg;
+		uint	interval;
 		UsbHostPipe		*pPipe;
 		PipeDescriptor	*pDesc;
 		
@@ -211,10 +212,12 @@ public:
 				{
 				case USBEP_Bulk:
 					cfg = USB_HOST_PCFG_PTYPE_BULK;
+					interval = 0;
 					break;
 
 				case USBEP_Interrupt:
 					cfg = USB_HOST_PCFG_PTYPE_INTERRUPT;
+					interval = pEp->bInterval;
 					break;
 
 				default:
@@ -223,8 +226,7 @@ public:
 
 				cfg |= pEp->bEndpointAddr & USBEP_DirIn ? USB_HOST_PCFG_PTOKEN_IN : USB_HOST_PCFG_PTOKEN_OUT;
 				pPipe->PCFG.reg = cfg;
-				if (pEp->bmAttributes == USBEP_Interrupt)
-					pPipe->BINTERVAL.reg = pEp->bInterval;
+				pPipe->BINTERVAL.reg = interval;
 				pPipe->PINTENSET.reg = USB_HOST_PINTFLAG_TRCPT0 |
 					USB_HOST_PINTFLAG_STALL | USB_HOST_PINTFLAG_PERR;
 				return i;
@@ -266,8 +268,6 @@ public:
 		PipeDescriptor	*pDesc;
 		UsbHostPipe		*pPipe;
 
-		DEBUG_PRINT("Send data pipe %i ... ", iPipe);
-
 		pDesc = &PipeDesc[iPipe];
 		pPipe = &USB->HOST.HostPipe[iPipe];
 
@@ -308,9 +308,6 @@ public:
 protected:
 	static void StartSetup(UsbHostDriver *pDriver, void *pv)
 	{
-		if (pDriver->m_bAddr != 0)
-			DEBUG_PRINT("Start setup ... ");
-
 		PipeDesc[0].Bank0.ADDR.reg = (uint32_t)&SetupBuffer;
 		PipeDesc[0].Bank0.PCKSIZE.reg =
 			USB_HOST_PCKSIZE_BYTE_COUNT(sizeof(SetupBuffer.packet)) | USB_HOST_PCKSIZE_SIZE(pDriver->m_PackSize);
@@ -421,7 +418,6 @@ protected:
 
 		case ES_ConfigDesc:
 			stEnum = ES_Idle;
-			DEBUG_PRINT("Enumeration Complete\n");
 
 			for (int i = 0; i < HOST_DRIVER_COUNT; i++)
 			{
@@ -435,6 +431,8 @@ protected:
 					pDriver->m_bAddr = DeviceDrivers.EnumDriver->m_bAddr;
 					pDriver->m_PackSize = DeviceDrivers.EnumDriver->m_PackSize;
 					pActiveList = pDriver;
+					pDriver->m_fDriverLoaded = true;
+					DEBUG_PRINT("Driver found\n");
 					return;
 				}
 			}
@@ -458,6 +456,22 @@ protected:
 
 		return (PipePacketSize)uSize;
 	};
+
+	static void Disconnect()
+	{
+		// Free all pipes
+		for (int i = 1; i < HOST_PIPE_COUNT; i++)
+			FreePipe(i);
+
+		// Free all drivers
+		for (int i = 0; i < HOST_DRIVER_COUNT; i++)
+			DeviceDrivers.arHostDriver[i]->m_fDriverLoaded = false;
+
+		pActiveList = NULL;
+		// Device is disconnected
+		stEnum = ES_Idle;
+		stSetup = SS_Idle;
+	}
 
 	//*********************************************************************
 	// Interrupt service routine
@@ -501,14 +515,7 @@ public:
 			// Clear the interrupt flag
 			USB->HOST.INTFLAG.reg = USB_HOST_INTFLAG_DDISC;
 
-			// Free all pipes
-			for (int i = 1; i < HOST_PIPE_COUNT; i++)
-				FreePipe(i);
-
-			pActiveList = NULL;
-			// Device is disconnected
-			stEnum = ES_Idle;
-			stSetup = SS_Idle;
+			Disconnect();
 		}
 
 		// Check for other host-level flags here
@@ -611,8 +618,6 @@ GetStatus:
 						break;
 
 					case SS_WaitAck:
-						if (pDriver->m_bAddr != 0)
-							DEBUG_PRINT("complete\n");
 						pDriver->SetupTransactionComplete(cbTransfer);
 						stSetup = SS_Idle;
 						return;
@@ -675,7 +680,6 @@ GetStatus:
 					else
 						cbTransfer = pDesc->Bank0.PCKSIZE.bit.BYTE_COUNT;
 
-					DEBUG_PRINT("transfer complete\n");
 					pDriver->TransferComplete(iPipe, cbTransfer);
 				}
 
@@ -714,7 +718,7 @@ GetStatus:
 
 	// Note this is NOT inline. It is defined in a code file using
 	// the USB_DRIVER_LIST() macro.
-	static DeviceDrivers_t DeviceDrivers;
+	static const DeviceDrivers_t DeviceDrivers;
 
 	//*********************************************************************
 	// static (RAM) data
