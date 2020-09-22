@@ -18,7 +18,6 @@
 	{static_cast<EnumerationDriver *>(enm), {__VA_ARGS__}};
 
 class EnumerationDriver;
-void HexDump(byte *pb, int cb);
 
 #ifndef HOST_PIPE_COUNT
 #define HOST_PIPE_COUNT 8
@@ -375,7 +374,7 @@ protected:
 			break;
 
 		case ES_ConfigDesc:
-			GetDescriptor(pDriver, &SetupBuffer, USBVAL_Type(USBDESC_Config), sizeof SetupBuffer);
+			GetDescriptor(pDriver, &SetupBuffer, USBVAL_Type(USBDESC_Config), sizeof SetupBuffer - 1);
 			break;
 		}
 	}
@@ -418,6 +417,8 @@ protected:
 
 		case ES_ConfigDesc:
 			stEnum = ES_Idle;
+
+			DEBUG_PRINT("Device speed: %s\n", USB->HOST.STATUS.bit.SPEED == 0 ? "Full" : "Low");
 
 			for (int i = 0; i < HOST_DRIVER_COUNT; i++)
 			{
@@ -772,7 +773,7 @@ class EnumerationDriver : public UsbHostDriver
 			break;
 
 		case TEC_Stall:
-			DEBUG_PRINT("Endpoint STALL during enumeration\n");
+			// Reported by host
 			break;
 
 		case TEC_Error:
