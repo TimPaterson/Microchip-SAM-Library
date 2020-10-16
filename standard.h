@@ -88,6 +88,8 @@ typedef union
 	ulong	ul;
 	long	l;
 	float	flt;
+	byte	arb[4];
+	ushort	arus[2];
 	struct
 	{
 		ushort	uLo16;

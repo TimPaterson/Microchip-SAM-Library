@@ -214,7 +214,7 @@ enum TxPad
 	TXPAD_Pad0,
 	TXPAD_Pad2,
 	TXPAD_Pad0_RTS_Pad2_CTS_Pad3,
-	TXPAD_Pad0_TE_Pad2
+	TXPAD_Pad0_TE_Pad2	// SAM C only
 };
 
 //****************************************************************************

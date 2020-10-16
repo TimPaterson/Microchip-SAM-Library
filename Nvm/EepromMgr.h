@@ -39,7 +39,7 @@ protected:
 
 	static constexpr int FlashRowSize = FLASH_PAGE_SIZE * NVMCTRL_ROW_PAGES;
 	static constexpr ulong Unprogrammed = 0xFFFFFFFF;
-	static constexpr ushort InvalidVersion = Unprogrammed;
+	static constexpr ushort InvalidVersion = (ushort)Unprogrammed;
 	static constexpr int RowDataSize = FlashRowSize - sizeof(RowDesc);
 	static constexpr int MaxEepromDataSize = NVMCTRL_RWWEE_PAGES / NVMCTRL_ROW_PAGES * RowDataSize;
 	static constexpr int PageHeadDataSize = FLASH_PAGE_SIZE - sizeof(RowDesc);
