@@ -400,6 +400,25 @@ public:
 		GetUsart()->DATA.reg = b;
 	}
 
+	void WriteByteNoBuf(byte b)
+	{
+		while (!GetUsart()->INTFLAG.bit.DRE);
+		DirectWriteByte(b);
+	}
+
+	void WriteStringNoBuf(const char *psz)
+	{
+		char	ch;
+
+		for (;;)
+		{
+			ch = *psz++;
+			if (ch == 0)
+				return;
+			WriteByteNoBuf(ch);
+		}
+	}
+
 	SercomUsart *GetUsart()		{return (SercomUsart *)m_pvIO;}
 };
 
