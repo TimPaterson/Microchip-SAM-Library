@@ -51,6 +51,29 @@ struct NvmSofwareCal_t
 
 #define NVM_SOFTWARE_CAL	((NvmSofwareCal_t *)NVMCTRL_OTP5)
 
+struct NvmUserRow_t
+{
+	uint64_t	BOOTPROT:3;
+	uint64_t	:1;
+	uint64_t	EEPROM:3;
+	uint64_t	:1;
+	uint64_t	BODVDD_LEVEL:6;
+	uint64_t	BODVDD_ENABLE:1;
+	uint64_t	BODVDD_ACTION:2;
+	uint64_t	:9;
+	uint64_t	WDT_ENABLE:1;
+	uint64_t	WDT_ALWAYSON:1;
+	uint64_t	WDT_PERIOD:4;
+	uint64_t	WDT_WINDOW:4;
+	uint64_t	WDT_EWOFFSET:4;
+	uint64_t	WDT_WEN:1;
+	uint64_t	BODVDD_HYSTERESIS:1;
+	uint64_t	:7;
+	uint64_t	LOCK:16;
+};
+
+#define NVM_USER_ROW	((NvmUserRow_t *)NVMCTRL_USER)
+
 #elif	defined(__SAMD10__) || defined(__SAMD11__) || defined(__SAMD20__) || defined(__SAMD21__)
 
 struct NvmSofwareCal_t
@@ -71,6 +94,29 @@ struct NvmSofwareCal_t
 };
 
 #define NVM_SOFTWARE_CAL	((NvmSofwareCal_t *)NVMCTRL_OTP4)
+
+struct NvmUserRow_t
+{
+	uint64_t	BOOTPROT:3;
+	uint64_t	:1;
+	uint64_t	EEPROM:3;
+	uint64_t	:1;
+	uint64_t	BOD33_LEVEL:6;
+	uint64_t	BOD33_ENABLE:1;
+	uint64_t	BOD33_ACTION:2;
+	uint64_t	:8;
+	uint64_t	WDT_ENABLE:1;
+	uint64_t	WDT_ALWAYSON:1;
+	uint64_t	WDT_PERIOD:4;
+	uint64_t	WDT_WINDOW:4;
+	uint64_t	WDT_EWOFFSET:4;
+	uint64_t	WDT_WEN:1;
+	uint64_t	BOD33_HYSTERESIS:1;
+	uint64_t	:8;
+	uint64_t	LOCK:16;
+};
+
+#define NVM_USER_ROW	((NvmUserRow_t *)NVMCTRL_USER)
 
 #endif
 
