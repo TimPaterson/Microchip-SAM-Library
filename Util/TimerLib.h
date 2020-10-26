@@ -84,8 +84,8 @@ public:
 	}
 
 public:
-	INLINE_ATTR static void ShortDelay_ns(double ns)	{ DelayLoop(LoopsFromNs(ns)); }
-	INLINE_ATTR static void ShortDelay_us(double us)	{ DelayLoop(LoopsFromUs(us)); }
+	INLINE_ATTR static void ShortDelay_ns(double ns)	{ ShortDelay_clocks(ClocksFromNs(ns)); }
+	INLINE_ATTR static void ShortDelay_us(double us)	{ ShortDelay_clocks(ClocksFromUs(us)); }
 	
 public:
 	INLINE_ATTR Timer_t Start()						{ return m_uLastTime = GetTickCount(); }
@@ -183,23 +183,45 @@ public:
 	INLINE_ATTR static Timer_t TicksFromFreq(uint f)	{ return DIV_UINT_RND(TimerClockFreq, f); }
 	INLINE_ATTR static Timer_t TicksFromFreq(int f)		{ return TicksFromFreq((uint)f); }
 
+public:
 	// Calculate loop count for short delays
-	INLINE_ATTR static ulong LoopsFromNs(double ns)
+	INLINE_ATTR static uint ClocksFromNs(double ns)
 	{
 		// Take ceiling on clock counts
-		ulong c = (ulong)((ns * CpuFreq + 1E9 - 1) / 1E9);
-		// and ceiling on loop counts
-		c = (c - LoopBaseClocks + ClocksPerLoop - 1) / ClocksPerLoop;
-		return c;
+		return (uint)((ns * CpuFreq + 1E9 - 1) / 1E9);
 	}
 		
-	INLINE_ATTR static ulong LoopsFromUs(double us)
+	INLINE_ATTR static uint ClocksFromUs(double us)
 	{
 		// Take ceiling on clock counts
-		ulong c = (ulong)((us * CpuFreq + 1E6 - 1) / 1E6);
-		// and ceiling on loop counts
-		c = (c - LoopBaseClocks + ClocksPerLoop - 1) / ClocksPerLoop;
-		return c;
+		return (uint)((us * CpuFreq + 1E6 - 1) / 1E6);
+	}
+
+	INLINE_ATTR static uint LoopsFromClocks(uint loops)
+	{
+		// Take ceiling on loop counts
+		return (loops - LoopBaseClocks + ClocksPerLoop - 1) / ClocksPerLoop;
+	}
+
+	INLINE_ATTR static void ShortDelay_clocks(uint clocks)
+	{
+		if (clocks >= LoopBaseClocks + ClocksPerLoop)
+			DelayLoop(LoopsFromClocks(clocks));
+		else
+		{
+			// Expecting this loop to be unrolled by optimizations
+			while (clocks >= 2)
+			{
+				asm volatile
+				(
+					"b	1f\n\t"
+				"1:\n\t"
+				);
+				clocks -= 2;
+			}
+			if (clocks == 1)
+				asm volatile ("nop\n\t");
+		}
 	}
 		
 public:
@@ -276,15 +298,15 @@ public:
 	}
 	
 protected:
-	INLINE_ATTR static void DelayLoop(ulong clocks)
+	INLINE_ATTR static void DelayLoop(ulong loops)
 	{
-		if (clocks != 0)
+		if (loops != 0)
 		{
 			asm volatile
 			(
 			"1:	 sub	%[cnt], #1\n\t"
 				"bne	1b"
-			: [cnt] "+l" (clocks) );
+			: [cnt] "+l" (loops) );
 		}
 	}
 
