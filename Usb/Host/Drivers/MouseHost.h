@@ -11,6 +11,38 @@
 #include <Usb/Host/UsbHostDriver.h>
 
 
+struct MouseParam
+{
+	int		minX;
+	int		maxX;
+	int		minY;
+	int		maxY;
+};
+
+union ButtonState
+{
+	ulong	ul;
+	struct  
+	{
+		byte	btnDown;
+		byte	btnStart;
+		byte	btnEnd;
+		byte	btnDbl;
+	};
+};
+
+enum ButtonBits
+{
+	BUTTON_Left = 1,
+	BUTTON_Right = 2,
+	BUTTON_Middle = 4,
+	BUTTON_X0 = 8,
+	BUTTON_X1 = 0x10,
+	BUTTON_X2 = 0x20,
+	BUTTON_X3 = 0x40,
+	BUTTON_X4 = 0x80,
+};
+
 class MouseHost : public UsbHostDriver
 {
 	//*********************************************************************
@@ -32,25 +64,33 @@ class MouseHost : public UsbHostDriver
 
 	struct MouseBuffer
 	{
-		union
-		{
-			byte	bButtons;
-			struct 
-			{
-				byte	btnLeft:1;
-				byte	btnRight:1;
-				byte	btnMiddle:1;
-				byte	btnX0:1;
-				byte	btnX1:1;
-				byte	btnX2:1;
-				byte	btnX3:1;
-				byte	btnX4:1;
-			};
-		};
+		byte	bButtons;
 		sbyte	moveX;
 		sbyte	moveY;
-		byte	Reserved[7];
+		byte	Reserved[5];
 	};
+
+	//*********************************************************************
+	// Public interface
+	//*********************************************************************
+
+	public:
+		int	GetX()	{ return m_curX; }
+		int	GetY()	{ return m_curY; }
+		ButtonState GetButtons()
+		{
+			ButtonState btns = m_stButtons;
+			m_stButtons.ul &= 0xFF;	// clear all edge-triggered states
+			return btns;
+		}
+
+		void Init(int maxX, int maxY, int minX = 0, int minY = 0)
+		{
+			m_parm.minX = minX;
+			m_parm.minY = minY;
+			m_parm.maxX = maxX;
+			m_parm.maxY = maxY;
+		}
 
 	//*********************************************************************
 	// Override of virtual functions
@@ -129,8 +169,10 @@ class MouseHost : public UsbHostDriver
 		InitPolling();
 	}
 
-	virtual void Process()
+	virtual int Process()
 	{
+		byte	stBtnDwn;
+		byte	stBtnChg;
 		USBhost::ControlPacket	pkt;
 
 		switch (m_stDev)
@@ -160,10 +202,19 @@ class MouseHost : public UsbHostDriver
 			break;
 
 		case DS_HaveMove:
-			DEBUG_PRINT("Motion X: %i, Y: %i, buttons: %02X\n", m_bufMouse.moveX, m_bufMouse.moveY, m_bufMouse.bButtons);
+			m_curX += m_bufMouse.moveX;
+			m_curY += m_bufMouse.moveY;
+			stBtnDwn = m_bufMouse.bButtons;
+			stBtnChg = m_stButtons.btnDown ^ stBtnDwn;
+			// Edge-triggered states (start, end) are kept until read.
+			m_stButtons.btnStart |= stBtnChg & stBtnDwn;
+			m_stButtons.btnEnd |= stBtnChg & ~stBtnDwn;
+			m_stButtons.btnDown = stBtnDwn;
+			// UNDONE: double-click
 			m_stDev = DS_Poll;
-			break;
+			return HOSTACT_MouseChange;
 		}
+		return HOSTACT_None;
 	}
 
 	//*********************************************************************
@@ -191,7 +242,12 @@ protected:
 	//*********************************************************************
 
 	// USB buffer must 4-byte aligned
-	MouseBuffer	m_bufMouse;// ALIGNED_ATTR(4);
+	MouseBuffer	m_bufMouse ALIGNED_ATTR(4);
+
+	MouseParam	m_parm;
+	ButtonState	m_stButtons;
+	int		m_curX;
+	int		m_curY;
 
 	bool	m_fPollStart;
 	byte	m_stDev;

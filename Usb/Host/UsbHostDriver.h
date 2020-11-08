@@ -31,7 +31,7 @@ class UsbHostDriver
 	virtual void TransferError(int iPipe, TransferErrorCode err) = 0;
 	
 	// called from main level
-	virtual void Process() = 0;
+	virtual int Process() = 0;
 
 	//*********************************************************************
 	// Instance methods
@@ -45,7 +45,6 @@ public:
 	//*********************************************************************
 
 protected:
-	UsbHostDriver	*m_pDriverNext;
 	byte			m_bAddr;
 	PipePacketSize	m_PackSize;
 	bool			m_fDriverLoaded;

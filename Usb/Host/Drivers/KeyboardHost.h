@@ -203,7 +203,7 @@ public:
 		InitPolling();
 	}
 
-	virtual void Process()
+	virtual int Process()
 	{
 		byte	bKey;
 		USBhost::ControlPacket	pkt;
@@ -249,6 +249,7 @@ public:
 			if (SetIndicators(m_bKeyLocks))
 				m_stDev = DS_Poll;
 		}
+		return HOSTACT_None;
 	}
 
 	//*********************************************************************

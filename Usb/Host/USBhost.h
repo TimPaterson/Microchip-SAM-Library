@@ -29,6 +29,17 @@ enum AutoZlpEnable
 	ZLP_AutoOn = USB_DEVICE_PCKSIZE_AUTO_ZLP,
 };
 
+enum HostAction
+{
+	HOSTACT_None,
+	HOSTACT_AddDevice,
+	HOSTACT_RemoveDevice,
+	HOSTACT_AddFailed,
+
+	HOSTACT_DriverAction,	// Driver actions start here
+	HOSTACT_MouseChange,
+};
+
 //*************************************************************************
 // USBhost Class
 //*************************************************************************
@@ -137,16 +148,25 @@ public:
 		USB->HOST.CTRLB.reg = 0;
 	}
 
-	static void Process()
+	static int Process()
 	{
-		UsbHostDriver	*pDriver;
-
 		if (stEnum != ES_Idle && stSetup == SS_Idle)
 			ProcessEnum();
 
-		for (pDriver = pActiveList; pDriver != NULL; pDriver = pDriver->m_pDriverNext)
-			pDriver->Process();
+		if (actHost != HOSTACT_None)
+		{
+			int act = actHost;
+			actHost = HOSTACT_None;
+			return act;
+		}
+
+		if (pActiveDriver != NULL)
+			return pActiveDriver->Process();
+
+		return HOSTACT_None;
 	}
+
+	static UsbHostDriver *GetDriver()	{ return pActiveDriver; }
 
 	static bool IsControlPipeReady()	{ return stSetup == SS_Idle; }
 
@@ -418,8 +438,6 @@ protected:
 		case ES_ConfigDesc:
 			stEnum = ES_Idle;
 
-			DEBUG_PRINT("Device speed: %s\n", USB->HOST.STATUS.bit.SPEED == 0 ? "Full" : "Low");
-
 			for (int i = 0; i < HOST_DRIVER_COUNT; i++)
 			{
 				UsbHostDriver	*pDriver;
@@ -428,16 +446,17 @@ protected:
 
 				if (pDriver != NULL)
 				{
-					pDriver->m_pDriverNext = pActiveList;
+					pActiveDriver = pDriver;
 					pDriver->m_bAddr = DeviceDrivers.EnumDriver->m_bAddr;
 					pDriver->m_PackSize = DeviceDrivers.EnumDriver->m_PackSize;
-					pActiveList = pDriver;
 					pDriver->m_fDriverLoaded = true;
+					actHost = HOSTACT_AddDevice;
 					DEBUG_PRINT("Driver found\n");
 					return;
 				}
 			}
 			DeviceDrivers.EnumDriver->TransferError(0, TEC_NoDriver);
+			actHost = HOSTACT_AddFailed;
 			break;
 		}
 	}
@@ -464,11 +483,13 @@ protected:
 		for (int i = 1; i < HOST_PIPE_COUNT; i++)
 			FreePipe(i);
 
-		// Free all drivers
-		for (int i = 0; i < HOST_DRIVER_COUNT; i++)
-			DeviceDrivers.arHostDriver[i]->m_fDriverLoaded = false;
-
-		pActiveList = NULL;
+		// Free the driver
+		if (pActiveDriver != NULL)
+		{
+			pActiveDriver->m_fDriverLoaded = false;
+			pActiveDriver = NULL;
+			actHost = HOSTACT_RemoveDevice;
+		}
 		// Device is disconnected
 		stEnum = ES_Idle;
 		stSetup = SS_Idle;
@@ -728,7 +749,7 @@ GetStatus:
 protected:
 	inline static SetupBuffer_t SetupBuffer;
 	inline static PipeDescriptor PipeDesc[HOST_PIPE_COUNT];
-	inline static UsbHostDriver *pActiveList;
+	inline static UsbHostDriver *pActiveDriver;
 	inline static void *pvSetupData;
 	inline static ulong devVidPid;
 	inline static ulong devClass;
@@ -736,6 +757,7 @@ protected:
 	inline static Timer tmrEnum;
 	inline static byte stEnum;
 	inline static byte stSetup;
+	inline static byte actHost;		// HostAction enumeration
 
 	//*********************************************************************
 	// Allow enumeration driver to access stuff
@@ -785,7 +807,8 @@ class EnumerationDriver : public UsbHostDriver
 		}
 	}
 
-	virtual void Process()
+	virtual int Process()
 	{
+		return HOSTACT_None;
 	}
 };

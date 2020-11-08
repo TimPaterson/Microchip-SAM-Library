@@ -14,8 +14,6 @@
 #define BLOCK_SIZE			512
 #define MAX_PACKET_SIZE		64
 
-void HexDump(byte *pb, int cb);
-
 
 class FlashDriveHost : public UsbHostDriver
 {
@@ -345,7 +343,7 @@ class FlashDriveHost : public UsbHostDriver
 		}
 	}
 
-	virtual void Process()
+	virtual int Process()
 	{
 		USBhost::ControlPacket	pkt;
 
@@ -356,14 +354,14 @@ class FlashDriveHost : public UsbHostDriver
 			// Now read command status
 			m_stCommand = CS_CheckStatus;
 			UsbReceiveData(&bufStatus, sizeof(UsbMsCsw));
-			return;
+			return HOSTACT_None;
 
 		case CS_StartClearStall:
 			// Must set next state before call
 			m_stCommand = CS_WaitClearStall;
 			if (!ClearStall(m_bPipeCur))
 				m_stCommand = CS_StartClearStall;	// change state back
-			return;
+			return HOSTACT_None;
 
 		case CS_StartReset:
 			// Send Mass Storage Reset
@@ -376,7 +374,7 @@ class FlashDriveHost : public UsbHostDriver
 			m_stCommand = CS_WaitReset;
 			if (!USBhost::ControlTransfer(this, NULL, pkt.u64))
 				m_stCommand = CS_StartReset;	// change state back
-			return;
+			return HOSTACT_None;
 
 		case CS_StartClearIn:
 			// Clear IN pipe
@@ -384,7 +382,7 @@ class FlashDriveHost : public UsbHostDriver
 			m_stCommand = CS_WaitClearIn;
 			if (!ClearStall(m_bInPipe))
 				m_stCommand = CS_StartClearIn;	// change state back
-			return;
+			return HOSTACT_None;
 
 		case CS_StartClearOut:
 			// Clear OUT pipe
@@ -392,7 +390,7 @@ class FlashDriveHost : public UsbHostDriver
 			m_stCommand = CS_WaitClearOut;
 			if (!ClearStall(m_bOutPipe))
 				m_stCommand = CS_StartClearOut;	// change state back
-			return;
+			return HOSTACT_None;
 		}
 
 		switch (m_stDrive)
@@ -420,10 +418,10 @@ class FlashDriveHost : public UsbHostDriver
 
 		case DS_HaveMbr:
 			DEBUG_PRINT("MBR:\n");
-			HexDump((byte *)m_arDiskBuffer, BLOCK_SIZE);
 			m_stDrive = DS_Idle;
 			break;
 		}
+		return HOSTACT_None;
 	}
 
 	//*********************************************************************
