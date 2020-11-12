@@ -166,6 +166,8 @@
     </ToolchainSettings>
   </PropertyGroup>
   <ItemGroup>
+    <Folder Include="FatFile\" />
+    <Folder Include="FatFile\SdCard" />
     <Folder Include="IoBuf\" />
     <Folder Include="IoBuf\" />
     <Folder Include="Lib\" />
@@ -186,6 +188,36 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Dma\DmaUsart.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="FatFile\Fat.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="FatFile\FatBuffer.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="FatFile\FatDrive.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="FatFile\FatFile.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="FatFile\FatFileConst.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="FatFile\FatSys.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="FatFile\FatSysWait.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="FatFile\SdCard\SdCard.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="FatFile\SdCard\SdConst.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="FatFile\Storage.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="IoBuf\IoBuf.h">

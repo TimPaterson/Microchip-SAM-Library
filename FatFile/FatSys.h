@@ -10,6 +10,8 @@
 #include <FatFile\FatDrive.h>
 
 
+#define FAT_DRIVES_LIST(...) FatDrive *FatSys::m_arDrives[FAT_NUM_DRIVES] = {__VA_ARGS__};
+
 class FatSys
 {
 	//*********************************************************************
@@ -572,5 +574,5 @@ protected:
 	//*********************************************************************
 
 protected:
-	inline static FatDrive	*m_arDrives[FAT_NUM_DRIVES];
+	static FatDrive	*m_arDrives[FAT_NUM_DRIVES];
 };

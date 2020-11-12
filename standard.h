@@ -186,6 +186,21 @@ inline uint GetPinsB()					{ return GetPins(1); }
 #define PortInB		(*(volatile LONG_BYTES *)&PORT_IOBUS->Group[1].IN.reg)
 
 //*********************************************************************
+// Helper to use 8-bit access
+
+inline void WriteByteOfReg32(volatile void *pv, uint val, ulong mask = 0)
+{
+	int		pos;
+
+	mask |= val;
+	pos = __builtin_ctzl(mask) / 8;
+	if (__builtin_clzl(mask) / 8 == 3 - pos)
+		((volatile byte *)pv)[pos] = val >> pos * 8;
+	else
+		*(volatile ulong *)pv = val;
+}
+
+//*********************************************************************
 // Helpers to set up port configuration
 
 inline void SetPortConfig(uint uConfig, uint uPins, int iPort)

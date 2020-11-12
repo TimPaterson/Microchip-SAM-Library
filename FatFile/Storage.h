@@ -21,14 +21,14 @@ enum STORAGE_ERROR
 class Storage
 {
 public:
-	virtual int Init();
+	virtual int InitDev();
 	virtual int MountDev();
 	virtual int StartRead(ulong block);
 	virtual int ReadData(void *pv);
 	virtual int StartWrite(ulong block);
 	virtual int WriteData(void *pv);
 	virtual int GetStatus();
-	virtual int Eject();
+	virtual int DismountDev();
 
 public:
 	static bool IsError(int err)	{ return err < 0; }

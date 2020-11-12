@@ -179,7 +179,7 @@ public:
 	uint Init(uint drive)
 	{
 		m_drive = drive;
-		return Storage::Init();
+		return InitDev();
 	}
 
 	int Status()
