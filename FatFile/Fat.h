@@ -109,7 +109,7 @@ union FatDate
 
 union FatDateTime
 {
-	LONG_BYTES	dwb;
+	ulong	ul;
 	struct
 	{
 		FatTime	time;

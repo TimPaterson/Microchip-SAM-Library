@@ -19,6 +19,7 @@ class FatSys
 	//*********************************************************************
 
 public:
+	static bool IsError(int err)		{return FatDrive::IsError(err);}
 	static byte IsFolder(uint handle)	{return HandleToPointer(handle)->IsFolder();}
 	static FatDateTime GetFatDate(uint handle)	
 		{return DriveToPointer(HandleToPointer(handle)->GetDrive())->m_state.DateTime;}
@@ -99,7 +100,7 @@ public:
 
 	//****************************************************************************
 
-	static int Open(const char *pchName, uint hFolder = 0, uint flags = OPENFLAG_File | OPENFLAG_Folder, int cchName = 0)
+	static int Open(const char *pchName, uint hFolder = 0, uint flags = OPENFLAG_File | OPENFLAG_Folder, int cchName = 0) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatDrive	*pDrive;
@@ -188,7 +189,7 @@ public:
 
 	//****************************************************************************
 
-	static int Close(uint handle)
+	static int Close(uint handle) NO_INLINE_ATTR
 	{
 		int	err;
 
@@ -209,7 +210,7 @@ public:
 
 	//****************************************************************************
 
-	static int Flush(uint handle)
+	static int Flush(uint handle) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatDrive	*pDrive;
@@ -237,7 +238,7 @@ public:
 
 	//****************************************************************************
 
-	static int FlushAll(uint drive)
+	static int FlushAll(uint drive) NO_INLINE_ATTR
 	{
 		FatDrive	*pDrive;
 
@@ -252,7 +253,7 @@ public:
 
 	//****************************************************************************
 
-	static int StartEnum(uint handle, uint flags = OPENFLAG_File | OPENFLAG_Folder)
+	static int StartEnum(uint handle, uint flags = OPENFLAG_File | OPENFLAG_Folder) NO_INLINE_ATTR
 	{
 		int			h;
 		FatFile		*pf;
@@ -270,7 +271,7 @@ public:
 
 	//****************************************************************************
 
-	static int EnumNext(uint hParent, char *pchNameBuf, int cbBuf)
+	static int EnumNext(uint hParent, char *pchNameBuf, int cbBuf) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatFile		*pfParent;
@@ -330,7 +331,7 @@ public:
 
 	//****************************************************************************
 
-	static int Delete(uint handle)
+	static int Delete(uint handle) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatDrive	*pDrive;
@@ -353,7 +354,7 @@ public:
 
 	//****************************************************************************
 
-	static int Rename(const char *pchName, uint hFolder, uint hSrc, int cchName = 0)
+	static int Rename(const char *pchName, uint hFolder, uint hSrc, int cchName = 0) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatDrive	*pDrive;
@@ -392,7 +393,7 @@ public:
 
 	//****************************************************************************
 
-	static ulong Seek(uint handle, ulong ulPos, int origin = FAT_SEEK_SET)
+	static ulong Seek(uint handle, ulong ulPos, int origin = FAT_SEEK_SET) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatDrive	*pDrive;
@@ -435,7 +436,7 @@ public:
 
 	//****************************************************************************
 
-	static ulong GetPosition(uint handle)
+	static ulong GetPosition(uint handle) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 
@@ -448,7 +449,7 @@ public:
 
 	//****************************************************************************
 
-	static ulong GetSize(uint handle)
+	static ulong GetSize(uint handle) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 
@@ -461,7 +462,7 @@ public:
 
 	//****************************************************************************
 
-	static int StartGetDate(uint handle)
+	static int StartGetDate(uint handle) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatDrive	*pDrive;
@@ -486,11 +487,10 @@ public:
 protected:
 	static FatDrive *DriveToPointer(byte drive)	{ return m_arDrives[drive]; }
 	static FatFile *HandleToPointer(int h)	{return FatDrive::HandleToPointer(h);}
-	static bool IsError(int err)			{ return FatDrive::IsError(err); }
 
 	//****************************************************************************
 
-	static int ReadWrite(uint handle, void *pv, uint cb, byte op)
+	static int ReadWrite(uint handle, void *pv, uint cb, byte op) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatDrive	*pDrive;
@@ -533,7 +533,7 @@ protected:
 
 	//****************************************************************************
 
-	static int GetHandle(uint hFolder, uint flags)
+	static int GetHandle(uint hFolder, uint flags) NO_INLINE_ATTR
 	{
 		FatFile		*pfFolder;
 		FatFile		*pf;

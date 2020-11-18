@@ -862,6 +862,7 @@ protected:
 		if (iSect >= 0x100)
 			goto BadBpb;
 		m_BPB.RootSecCnt = iSect;
+		m_BPB.NumFat = pBoot->Bpb.NumFATs;
 
 		m_BPB.FatSize = pBoot->Bpb.FATSz16 == 0 ? pBoot->Bpb32.FATSz32 : pBoot->Bpb.FATSz16;
 		iSect += m_BPB.FatSize * m_BPB.NumFat;
@@ -1327,7 +1328,7 @@ protected:
 
 	//****************************************************************************
 
-	byte Enum(FatFile *pf)
+	int Enum(FatFile *pf)
 	{
 		uint		wTmp;
 		ulong		dwTmp;
@@ -1384,7 +1385,7 @@ protected:
 			clus = ReadFatEntry(dwLast);
 			if (clus.IsError())
 			{
-				err = dwTmp;
+				err = clus.ul;
 				goto Exit;
 			}
 			dwTmp = clus.Cluster;
@@ -1615,67 +1616,53 @@ protected:
 		byte	ch;
 		byte	cbTotal;
 		byte	cch1;
-		ushort	*pwDir;
+		byte	*pbDir;
 
 		cbTotal = 0;
 
-		pwDir = pDir->Long.Name1;
+		// We ignore upper byte of Unicode characters in name
+		pbDir = (byte *)pDir->Long.Name1;
 		for (cch1 = _countof(pDir->Long.Name1); cch1 != 0; cch1--)
 		{
-			if (*pwDir >= 0x100)
-				ch = 0xFF;
-			else
-			{
-				ch = (byte)*pwDir;
-				if (ch == 0)
-					goto EndDir;
-			}
+			ch = (byte)*pbDir;
+			if (ch == 0)
+				goto EndDir;
 			if (cch)
 			{
 				*pchName++ = ch;
 				cch--;
 			}
-			pwDir++;
+			pbDir += 2;
 			cbTotal++;
 		}
 
-		pwDir = pDir->Long.Name2;
+		pbDir = (byte *)pDir->Long.Name2;
 		for (cch1 = _countof(pDir->Long.Name2); cch1 != 0; cch1--)
 		{
-			if (*pwDir >= 0x100)
-				ch = 0xFF;
-			else
-			{
-				ch = (byte)*pwDir;
-				if (ch == 0)
-					goto EndDir;
-			}
+			ch = (byte)*pbDir;
+			if (ch == 0)
+				goto EndDir;
 			if (cch)
 			{
 				*pchName++ = ch;
 				cch--;
 			}
-			pwDir++;
+			pbDir += 2;
 			cbTotal++;
 		}
 
-		pwDir = pDir->Long.Name3;
+		pbDir = (byte *)pDir->Long.Name3;
 		for (cch1 = _countof(pDir->Long.Name3); cch1 != 0; cch1--)
 		{
-			if (*pwDir >= 0x100)
-				ch = 0xFF;
-			else
-			{
-				ch = (byte)*pwDir;
-				if (ch == 0)
-					goto EndDir;
-			}
+			ch = (byte)*pbDir;
+			if (ch == 0)
+				goto EndDir;
 			if (cch)
 			{
 				*pchName++ = ch;
 				cch--;
 			}
-			pwDir++;
+			pbDir += 2;
 			cbTotal++;
 		}
 

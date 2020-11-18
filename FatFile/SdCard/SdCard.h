@@ -18,7 +18,7 @@
 #define	ErrGoDeselect(e)	do {err = e; goto Deselect;} while (0)
 
 template<class T>
-class SdCard : public FatDrive, T
+class SdCard : public FatDrive, public T
 {
 	//*********************************************************************
 	// Types
@@ -58,7 +58,7 @@ public:
 
 		// Convert 512-byte block to byte address if not hi cap.
 		if (m_fMount == SDMOUNT_LoCap)
-		block <<= 9;
+			block <<= 9;
 
 		Select();
 		err = SendCommand(SDCARD_READ_BLOCK, block);
@@ -261,7 +261,7 @@ protected:
 
 	//****************************************************************************
 
-	int ReadStatus()
+	int ReadStatus() NO_INLINE_ATTR
 	{
 		int	err;
 
@@ -301,7 +301,7 @@ protected:
 
 	//****************************************************************************
 
-	byte GetCardStatus()
+	byte GetCardStatus() NO_INLINE_ATTR
 	{
 		byte	b1;
 		byte	b2;
@@ -390,6 +390,7 @@ protected:
 		// Crank the speed up
 		Deselect();
 		T::SetClockFast();
+		m_fMount = IsError(err) ? SDMOUNT_NotMounted : err;
 		return err;
 	}
 	//*********************************************************************

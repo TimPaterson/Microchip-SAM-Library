@@ -12,7 +12,8 @@
 
 class FatSysWait : public FatSys
 {
-	static int WaitResult(uint handle)
+public:
+	static int WaitResult(uint handle) NO_INLINE_ATTR
 	{
 		int	status;
 
@@ -26,7 +27,7 @@ class FatSysWait : public FatSys
 
 	//****************************************************************************
 
-	static int OpenWait(const char *pchName, uint hFolder = 0, uint flags = OPENFLAG_File | OPENFLAG_Folder, int cchName = 0)
+	static int OpenWait(const char *pchName, uint hFolder = 0, uint flags = OPENFLAG_File | OPENFLAG_Folder, int cchName = 0) NO_INLINE_ATTR
 	{
 		int		err;
 
@@ -46,7 +47,7 @@ class FatSysWait : public FatSys
 
 	//****************************************************************************
 
-	static int CloseWait(uint handle)
+	static int CloseWait(uint handle) NO_INLINE_ATTR
 	{
 		int		err;
 
@@ -58,33 +59,33 @@ class FatSysWait : public FatSys
 
 	//****************************************************************************
 
-	static int ReadWait(uint handle, void *pv, int cb)
+	static int ReadWait(uint handle, void *pv, int cb) NO_INLINE_ATTR
 	{
 		int		err;
 
 		err = Read(handle, pv, cb);
 		if (IsError(err))
-			return WaitResult(err);	// just convert error code to WORD
+			return err;
 
 		return WaitResult(handle);
 	}
 
 	//****************************************************************************
 
-	static int WriteWait(uint handle, void *pv, int cb)
+	static int WriteWait(uint handle, void *pv, int cb) NO_INLINE_ATTR
 	{
 		int		err;
 
 		err = Write(handle, pv, cb);
 		if (IsError(err))
-			return WaitResult(err);	// just convert error code to WORD
+			return err;
 
 		return WaitResult(handle);
 	}
 
 	//*********************************************************************
 
-	static int DeleteWait(const char *pchName, uint hFolder = 0, uint flags = OPENFLAG_File | OPENFLAG_Folder, int cchName = 0)
+	static int DeleteWait(const char *pchName, uint hFolder = 0, uint flags = OPENFLAG_File | OPENFLAG_Folder, int cchName = 0) NO_INLINE_ATTR
 	{
 		uint	hFile;
 		int		err;
@@ -103,7 +104,7 @@ class FatSysWait : public FatSys
 
 	//*********************************************************************
 
-	static int EnumNextWait(uint handle, char *pch, int cbMax)
+	static int EnumNextWait(uint handle, char *pch, int cbMax) NO_INLINE_ATTR
 	{
 		uint	hFile;
 		int		err;
@@ -124,7 +125,7 @@ class FatSysWait : public FatSys
 
 	//*********************************************************************
 
-	static int GetDateWait(uint handle)
+	static int GetDateWait(uint handle) NO_INLINE_ATTR
 	{
 		int		err;
 
@@ -137,20 +138,20 @@ class FatSysWait : public FatSys
 
 	//*********************************************************************
 
-	static int RenameWait(const char *pchName, uint hFolder, uint hFileSrc, int cchName = 0)
+	static int RenameWait(const char *pchName, uint hFolder, uint hFileSrc, int cchName = 0) NO_INLINE_ATTR
 	{
 		int		err;
 
 		err = Rename(pchName, hFolder, hFileSrc, cchName);
-		if (!(IsError(err)))
-			err = WaitResult(hFileSrc);
+		if (IsError(err))
+			return err;
 
-		return err;
+		return WaitResult(hFileSrc);
 	}
 
 	//*********************************************************************
 
-	static ulong SeekWait(uint handle, ulong ulPos, int origin = FAT_SEEK_SET)
+	static ulong SeekWait(uint handle, ulong ulPos, int origin = FAT_SEEK_SET) NO_INLINE_ATTR
 	{
 		ulong	ulCurPos;
 		int		err;
@@ -163,5 +164,18 @@ class FatSysWait : public FatSys
 				return -1;
 		}
 		return ulCurPos;
+	}
+
+	//*********************************************************************
+
+	static int MountWait(uint drive) NO_INLINE_ATTR
+	{
+		int		err;
+
+		err = Mount(drive);
+		while (err == FATERR_Busy)
+			err = GetDriveStatus(drive);
+
+		return err;
 	}
 };

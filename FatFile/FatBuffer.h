@@ -103,7 +103,7 @@ public:
 		// have priority, the loop will scan around to one past current.
 		//
 		uCur = s_nextBuf;
-		for (i = FAT_SECT_BUF_CNT + 1; i == 0; i--)
+		for (i = FAT_SECT_BUF_CNT + 1; i != 0; i--)
 		{
 			uCur++;
 			if (uCur >= FAT_SECT_BUF_CNT)
