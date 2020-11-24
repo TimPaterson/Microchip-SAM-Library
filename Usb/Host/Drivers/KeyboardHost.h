@@ -388,8 +388,8 @@ protected:
 	//*********************************************************************
 
 	// USB buffer must 4-byte aligned
-	UsbKeyBuffer ALIGNED_ATTR(4)	m_bufUsbKey;
-	UsbOutBuffer ALIGNED_ATTR(4)	m_bufUsbOut;
+	UsbKeyBuffer ALIGNED_ATTR(int)	m_bufUsbKey;
+	UsbOutBuffer ALIGNED_ATTR(int)	m_bufUsbOut;
 
 	bool	m_fPollStart;
 	byte	m_stDev;

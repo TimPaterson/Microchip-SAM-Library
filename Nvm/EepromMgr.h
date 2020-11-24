@@ -25,7 +25,7 @@ enum NvmWriteState
 };
 
 
-template <class T, const T *pInit> class EepromMgr
+template <class T, const T *pInit, int cReservedRows = 0> class EepromMgr
 {
 #define	ALIGN32(x)	(((x) + 3) & ~3)
 
@@ -38,6 +38,7 @@ protected:
 	};
 
 	static constexpr int FlashRowSize = FLASH_PAGE_SIZE * NVMCTRL_ROW_PAGES;
+	static constexpr int ManagedEepromStart = NVMCTRL_RWW_EEPROM_ADDR + cReservedRows * FlashRowSize;
 	static constexpr ulong Unprogrammed = 0xFFFFFFFF;
 	static constexpr ushort InvalidVersion = (ushort)Unprogrammed;
 	static constexpr int RowDataSize = FlashRowSize - sizeof(RowDesc);
@@ -111,7 +112,7 @@ protected:
 			return;
 		}
 
-		pRowLo = (RowDesc *)(NVMCTRL_RWW_EEPROM_ADDR + iRow * FlashRowSize * 2);
+		pRowLo = (RowDesc *)(ManagedEepromStart + iRow * FlashRowSize * 2);
 		pbPos = m_arbPaddedData + iRow * FlashRowSize;
 		iCount = AlignedSize - iRow * FlashRowSize;
 		pRow = m_arpRow[iRow];
@@ -212,7 +213,7 @@ protected:
 		RowDesc	**ppRow;
 
 		cbLoad = 0;
-		pRowLo = (RowDesc *)NVMCTRL_RWW_EEPROM_ADDR;
+		pRowLo = (RowDesc *)ManagedEepromStart;
 		ppRow = &m_arpRow[0];
 		do
 		{

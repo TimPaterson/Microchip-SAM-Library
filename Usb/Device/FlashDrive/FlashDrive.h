@@ -451,7 +451,7 @@ protected:
 protected:
 	inline static Buffer_t	Buffer;
 	// USB buffers must be 4-byte aligned
-	inline static ScsiFixedFormatSenseData	Sense ALIGNED_ATTR(4);
+	inline static ScsiFixedFormatSenseData	Sense ALIGNED_ATTR(int);
 	inline static ulong		CmdTag;
 	inline static ulong		LbaTransfer;
 	inline static int		cbTranferLen;

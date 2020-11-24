@@ -10,6 +10,7 @@
 #include <FatFile\FatSys.h>
 
 
+template<bool fNeedWdtReset = false>
 class FatSysWait : public FatSys
 {
 public:
@@ -19,6 +20,8 @@ public:
 
 		do
 		{
+			if (fNeedWdtReset)
+				wdt_reset();
 			status = GetStatus(handle);
 		} while (status == FATERR_Busy);
 
@@ -174,7 +177,12 @@ public:
 
 		err = Mount(drive);
 		while (err == FATERR_Busy)
+		{
+			if (fNeedWdtReset)
+				wdt_reset();
+
 			err = GetDriveStatus(drive);
+		}
 
 		return err;
 	}

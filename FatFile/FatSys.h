@@ -23,6 +23,7 @@ public:
 	static byte IsFolder(uint handle)	{return HandleToPointer(handle)->IsFolder();}
 	static FatDateTime GetFatDate(uint handle)	
 		{return DriveToPointer(HandleToPointer(handle)->GetDrive())->m_state.DateTime;}
+	static byte *GetDataBuf()			{ return FatDrive::s_pvDataBuf; }
 
 	//static byte SetDate(byte handle, ulong dwTime) {return SetFatDate(handle, ToFatTime(dwTime));}
 	/*
@@ -523,6 +524,8 @@ protected:
 		else
 			pf->m_flags.fDirty = 1;
 
+		if (cb > 0xFFFF)
+			cb = 0xFFFF;
 		pDrive->m_state.cb = cb;
 		if (cb == 0)
 			op = FATOP_Status;

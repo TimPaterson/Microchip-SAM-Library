@@ -989,7 +989,9 @@ protected:
 	//*********************************************************************
 	// File I/O
 
-	static byte FillLongName(ushort *pwName, byte cch1, char *pchLongName, sbyte cch)
+	typedef ALIGNED_ATTR(byte) ushort unaligned_ushort;
+
+	static byte FillLongName(unaligned_ushort *pwName, uint cch1, char *pchLongName, int cch)
 	{
 		ushort		wch;
 
@@ -1002,6 +1004,7 @@ protected:
 			else
 				wch = 0xFFFF;
 
+			// Byte at a time as some fields are not aligned
 			*pwName++ = wch;
 		}
 
@@ -1123,7 +1126,7 @@ protected:
 		int			bDirPos;
 		int			bPos;
 		int			bDirEnt;
-		sbyte		cch;
+		int			cch;
 		uint		wTmp;
 		ulong		dwTmp;
 		FatDirEnt	*pDir;
@@ -1553,20 +1556,23 @@ protected:
 	//*********************************************************************
 	// Directory search
 
-	static byte CompareNamePart(const char *pchName, const ushort *pwDir, byte cch, byte cch1)
+	static int CompareNamePart(const char *pchName, const ushort *pwDir, int cch, int cch1)
 	{
 		byte	ch1, ch2;
+		const byte	*pbDir;
+
+		// We ignore upper byte of Unicode characters in name
+		pbDir = (const byte *)pwDir;
 
 		if (cch1 > cch)
-			cch1 = 0xFF;	// This will be a final match
+			cch1 = -1;	// This will be a final match
 		else
 			cch = cch1;	// Limit to directory field length
 
 		while (cch)
 		{
-			if (*pwDir >= 0x100)
-				return 0;
-			ch1 = (byte)*pwDir++;
+			ch1 = *pbDir;
+			pbDir += 2;
 			ch2 = *pchName++;
 			// Flush to upper case for case insensitivity
 			if (ch1 >= 'a' && ch1 <= 'z')
@@ -1580,26 +1586,26 @@ protected:
 		}
 
 		// If directory entry is longer, look for null terminator
-		if (cch1 == 0xFF && *pwDir != 0)
+		if (cch1 == -1 && *pbDir != 0)
 			return 0;
 		return cch1;
 	}
 
 	//****************************************************************************
 
-	static byte CompareLongName(const char *pchName, FatDirEnt *pDir, byte cch)
+	static int CompareLongName(const char *pchName, FatDirEnt *pDir, uint cch)
 	{
-		byte	cDif;
+		int	cDif;
 
 		cDif = CompareNamePart(pchName, pDir->Long.Name1, cch, _countof(pDir->Long.Name1));
-		if ((sbyte)cDif <= 0)
+		if (cDif <= 0)
 			return cDif;
 
 		cch -= cDif;
 		pchName += cDif;
 
 		cDif = CompareNamePart(pchName, pDir->Long.Name2, cch, _countof(pDir->Long.Name2));
-		if ((sbyte)cDif <= 0)
+		if (cDif <= 0)
 			return cDif;
 
 		cch -= cDif;
@@ -1611,11 +1617,11 @@ protected:
 
 	//****************************************************************************
 
-	static byte CopyLongName(char *pchName, FatDirEnt *pDir, byte cch)
+	static uint CopyLongName(char *pchName, FatDirEnt *pDir, uint cch)
 	{
 		byte	ch;
-		byte	cbTotal;
-		byte	cch1;
+		uint	cbTotal;
+		uint	cch1;
 		byte	*pbDir;
 
 		cbTotal = 0;
@@ -1624,7 +1630,7 @@ protected:
 		pbDir = (byte *)pDir->Long.Name1;
 		for (cch1 = _countof(pDir->Long.Name1); cch1 != 0; cch1--)
 		{
-			ch = (byte)*pbDir;
+			ch = *pbDir;
 			if (ch == 0)
 				goto EndDir;
 			if (cch)
@@ -1639,7 +1645,7 @@ protected:
 		pbDir = (byte *)pDir->Long.Name2;
 		for (cch1 = _countof(pDir->Long.Name2); cch1 != 0; cch1--)
 		{
-			ch = (byte)*pbDir;
+			ch = *pbDir;
 			if (ch == 0)
 				goto EndDir;
 			if (cch)
@@ -1654,7 +1660,7 @@ protected:
 		pbDir = (byte *)pDir->Long.Name3;
 		for (cch1 = _countof(pDir->Long.Name3); cch1 != 0; cch1--)
 		{
-			ch = (byte)*pbDir;
+			ch = *pbDir;
 			if (ch == 0)
 				goto EndDir;
 			if (cch)
@@ -1672,10 +1678,10 @@ protected:
 
 	//****************************************************************************
 
-	static byte CopyShortPart(char *pchDest, const char *pchSrc, byte cch, byte fLower)
+	static uint CopyShortPart(char *pchDest, const char *pchSrc, uint cch, byte fLower)
 	{
 		const char	*pchCur;
-		byte		cTotal;
+		uint		cTotal;
 		char		ch;
 
 		pchCur = pchSrc + cch;

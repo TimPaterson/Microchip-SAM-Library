@@ -242,7 +242,7 @@ protected:
 	//*********************************************************************
 
 	// USB buffer must 4-byte aligned
-	MouseBuffer	m_bufMouse ALIGNED_ATTR(4);
+	MouseBuffer	m_bufMouse ALIGNED_ATTR(int);
 
 	MouseParam	m_parm;
 	ButtonState	m_stButtons;
