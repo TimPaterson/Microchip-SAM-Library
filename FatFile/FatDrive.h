@@ -949,7 +949,7 @@ protected:
 
 	//****************************************************************************
 
-	int StartBuf(ulong ulSect)
+	int StartBuf(ulong ulSect) NO_INLINE_ATTR
 	{
 		int		err;
 
@@ -966,7 +966,7 @@ protected:
 
 	//*********************************************************************
 
-	int WriteBuf(uint buf)
+	int WriteBuf(uint buf) NO_INLINE_ATTR
 	{
 		int			err;
 		FatBufDesc *pDesc;
@@ -1013,7 +1013,7 @@ protected:
 
 	//****************************************************************************
 
-	int StartOpen(FatFile *pf, int bTail = 1)
+	int StartOpen(FatFile *pf, int bTail = 1) NO_INLINE_ATTR
 	{
 		int				err;
 		FatShortName	ShortName;
@@ -1036,7 +1036,7 @@ protected:
 
 	//****************************************************************************
 
-	int StartAllocClus()
+	int StartAllocClus() NO_INLINE_ATTR
 	{
 		int	err;
 
@@ -1048,7 +1048,7 @@ protected:
 
 	//****************************************************************************
 
-	int StartCreate(FatFile *pf)
+	int StartCreate(FatFile *pf) NO_INLINE_ATTR
 	{
 		int		cLongDir;
 		int		cFree;
@@ -1120,7 +1120,7 @@ protected:
 
 	//****************************************************************************
 
-	int Create(FatFile *pf)
+	int Create(FatFile *pf) NO_INLINE_ATTR
 	{
 		int			bTmp;
 		int			bDirPos;
@@ -1267,7 +1267,7 @@ protected:
 
 	//****************************************************************************
 
-	int Seek(FatFile *pf)
+	int Seek(FatFile *pf) NO_INLINE_ATTR
 	{
 		uint		bCnt;
 		ulong		ulClusNew;
@@ -1331,7 +1331,7 @@ protected:
 
 	//****************************************************************************
 
-	int Enum(FatFile *pf)
+	int Enum(FatFile *pf) NO_INLINE_ATTR
 	{
 		uint		wTmp;
 		ulong		dwTmp;
@@ -1359,7 +1359,7 @@ protected:
 	//*********************************************************************
 	// FAT management
 
-	int StartFatRead(ulong dwCluster)
+	int StartFatRead(ulong dwCluster) NO_INLINE_ATTR
 	{
 		int	err;
 
@@ -1371,7 +1371,7 @@ protected:
 
 	//****************************************************************************
 
-	int ReadFat(FatFile *pf)
+	int ReadFat(FatFile *pf) NO_INLINE_ATTR
 	{
 		int			err;
 		int			cnt;
@@ -1383,7 +1383,7 @@ protected:
 		dwLast = pf->m_CurClus.Cluster;
 
 		// Read ahead in FAT sector to accumulate consecutive clusters
-		for(;;)
+		do
 		{
 			clus = ReadFatEntry(dwLast);
 			if (clus.IsError())
@@ -1416,13 +1416,8 @@ protected:
 					break;
 			}
 
-			cnt++;
-			if (cnt > CLUS_COUNT_MAX)
-				break;
-
-			if (clus.fLastSect)
-				break;	// reached end of FAT sector
-		} // for(;;)
+		} while (++cnt <= CLUS_COUNT_MAX && !clus.fLastSect && 
+			FatSectFromClus(dwLast) == CurBufDesc()->block);
 
 		// We finished counting consecutive clusters
 		if (cnt > 0)
@@ -1436,7 +1431,7 @@ protected:
 
 	//****************************************************************************
 
-	FatShortDirEnt *SetFirstClus(FatFile *pf)
+	FatShortDirEnt *SetFirstClus(FatFile *pf) NO_INLINE_ATTR
 	{
 		FatShortDirEnt	*pDir;
 		LONG_BYTES		dwb;
@@ -1453,7 +1448,7 @@ protected:
 
 	//****************************************************************************
 
-	ulong SectFromClus(ulong dwCluster)
+	ulong SectFromClus(ulong dwCluster) NO_INLINE_ATTR
 	{
 		dwCluster -= 2;
 		dwCluster <<= m_BPB.SecPerClusShift;
@@ -1474,7 +1469,7 @@ protected:
 
 	//****************************************************************************
 
-	ulong FatSectFromClus(ulong dwCluster)
+	ulong FatSectFromClus(ulong dwCluster) NO_INLINE_ATTR
 	{
 		dwCluster = ShiftClusByFatSize(dwCluster);
 
@@ -1486,7 +1481,7 @@ protected:
 
 	//****************************************************************************
 
-	int WriteFatEntry(ulong ulClus, ulong ulValue)
+	int WriteFatEntry(ulong ulClus, ulong ulValue) NO_INLINE_ATTR
 	{
 		uint		wTmp;
 		byte		*pbFat;
@@ -1506,7 +1501,7 @@ protected:
 	}
 	//****************************************************************************
 
-	FatCluster ReadFatEntry(ulong dwClus)
+	FatCluster ReadFatEntry(ulong dwClus) NO_INLINE_ATTR
 	{
 		uint		uTmp;
 		FatCluster	clus;
@@ -1759,7 +1754,7 @@ protected:
 
 	//****************************************************************************
 
-	int CompDir(FatDirEnt *pDir, byte fFindAll)
+	int CompDir(FatDirEnt *pDir, byte fFindAll) NO_INLINE_ATTR
 	{
 		int		bTmp;
 		int		pos;
@@ -1949,7 +1944,7 @@ protected:
 
 	//****************************************************************************
 
-	int SearchDir(FatFile *pf, FatDirEnt *pDir, byte fFindAll = false)
+	int SearchDir(FatFile *pf, FatDirEnt *pDir, byte fFindAll = false) NO_INLINE_ATTR
 	{
 		int			err;
 		int			cFree;
@@ -2143,7 +2138,7 @@ protected:
 
 	//****************************************************************************
 
-	int ReadFirstDir(FatFile *pf)
+	int ReadFirstDir(FatFile *pf) NO_INLINE_ATTR
 	{
 		ulong	dwTmp;
 
@@ -2171,7 +2166,7 @@ protected:
 
 	//****************************************************************************
 
-	int ReadNextDir(FatFile *pf)
+	int ReadNextDir(FatFile *pf) NO_INLINE_ATTR
 	{
 		int		bPos;
 		int		bCnt;

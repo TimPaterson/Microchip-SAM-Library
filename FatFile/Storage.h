@@ -6,16 +6,16 @@
 enum STORAGE_ERROR
 {
 	STERR_None,
-	NEG_ENUM(STERR_Busy),
-	NEG_ENUM(STERR_NoMedia),
-	NEG_ENUM(STERR_NotMounted),
-	NEG_ENUM(STERR_BadBlock),
-	NEG_ENUM(STERR_WriteProtect),
-	NEG_ENUM(STERR_BadCmd),
-	NEG_ENUM(STERR_DevFail),
-	NEG_ENUM(STERR_InvalidAddr),
-	NEG_ENUM(STERR_TimeOut),
-	NEG_ENUM(STERR_Last),
+	NEG_ENUM(STERR_Busy),			// -1
+	NEG_ENUM(STERR_NoMedia),		// -2
+	NEG_ENUM(STERR_NotMounted),		// -3
+	NEG_ENUM(STERR_BadBlock),		// -4
+	NEG_ENUM(STERR_WriteProtect),	// -5
+	NEG_ENUM(STERR_BadCmd),			// -6
+	NEG_ENUM(STERR_DevFail),		// -7
+	NEG_ENUM(STERR_InvalidAddr),	// -8
+	NEG_ENUM(STERR_TimeOut),		// -9
+	NEG_ENUM(STERR_Last),			// -10
 };
 
 class Storage
