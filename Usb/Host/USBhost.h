@@ -38,6 +38,7 @@ enum HostAction
 
 	HOSTACT_DriverAction,	// Driver actions start here
 	HOSTACT_MouseChange,
+	HOSTACT_FlashReady,
 };
 
 //*************************************************************************
@@ -150,18 +151,23 @@ public:
 
 	static int Process()
 	{
-		if (stEnum != ES_Idle && stSetup == SS_Idle)
-			ProcessEnum();
-
-		if (actHost != HOSTACT_None)
+		if (stEnum != ES_Idle)
 		{
-			int act = actHost;
-			actHost = HOSTACT_None;
-			return act;
+			if (stSetup == SS_Idle)
+				ProcessEnum();
 		}
+		else
+		{
+			if (actHost != HOSTACT_None)
+			{
+				int act = actHost;
+				actHost = HOSTACT_None;
+				return act;
+			}
 
-		if (pActiveDriver != NULL)
-			return pActiveDriver->Process();
+			if (pActiveDriver != NULL)
+				return pActiveDriver->Process();
+		}
 
 		return HOSTACT_None;
 	}
@@ -451,7 +457,6 @@ protected:
 					pDriver->m_PackSize = DeviceDrivers.EnumDriver->m_PackSize;
 					pDriver->m_fDriverLoaded = true;
 					actHost = HOSTACT_AddDevice;
-					DEBUG_PRINT("Driver found\n");
 					return;
 				}
 			}

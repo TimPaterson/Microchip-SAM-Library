@@ -7,7 +7,15 @@
 
 #pragma once
 
-#include <FatFile\FatDrive.h>
+// Note that the following symbols must be defined at this point:
+//
+// FAT_SECT_BUF_CNT	- number of sector buffers
+// FAT_MAX_HANDLES	- max number of file handles
+// FAT_NUM_DRIVES	- number of drives
+//
+// This would typically be done in FatFileDef.h
+
+#include <FatFile/FatDrive.h>
 
 
 #define FAT_DRIVES_LIST(...) FatDrive *FatSys::m_arDrives[FAT_NUM_DRIVES] = {__VA_ARGS__};
@@ -20,6 +28,7 @@ class FatSys
 
 public:
 	static bool IsError(int err)		{return FatDrive::IsError(err);}
+	static bool IsErrorNotBusy(int err)	{return FatDrive::IsErrorNotBusy(err);}
 	static byte IsFolder(uint handle)	{return HandleToPointer(handle)->IsFolder();}
 	static FatDateTime GetFatDate(uint handle)	
 		{return DriveToPointer(HandleToPointer(handle)->GetDrive())->m_state.DateTime;}
@@ -277,7 +286,7 @@ public:
 		FatFile		*pf;
 		FatFile		*pfParent;
 		FatDrive	*pDrive;
-		int			h;
+		int			hFile;
 		int			err;
 
 		if (hParent == 0)
@@ -290,25 +299,22 @@ public:
 		if (cbBuf < FAT_MIN_NAME_BUF)
 			return FATERR_InvalidArgument;
 
-		// Get the handle to return if found
-		h = GetHandle(hParent, 0);
-		if (IsError(h))
-			return h;
-		pf = HandleToPointer(h);
-
-		pDrive = DriveToPointer(pf->GetDrive());
+		pDrive = DriveToPointer(pfParent->GetDrive());
 		if (pDrive->m_state.op != FATOP_None)
-		{
-			pf->Close();
 			return FATERR_Busy;
-		}
+
+		// Get the handle to return if found
+		hFile = GetHandle(hParent, 0);
+		if (IsError(hFile))
+			return hFile;
+		pf = HandleToPointer(hFile);
 
 		// Initialize search location
 		pfParent->CopySearchLoc(pf);
 
 		pDrive->m_state.cchName = cbBuf - 1;// allow room for null terminator
 		pDrive->m_state.pchName = pchNameBuf;
-		pDrive->m_state.handle = h;
+		pDrive->m_state.handle = hFile;
 		pDrive->m_state.info.hParent = hParent;	// remember parent
 		pDrive->m_state.info.OpenFlags = pfParent->m_OpenFlags;
 		pDrive->m_state.op = FATOP_Enum;
@@ -327,7 +333,7 @@ public:
 		else
 			pf->SearchNext();
 
-		return h;
+		return FATERR_None;
 	}
 
 	//****************************************************************************

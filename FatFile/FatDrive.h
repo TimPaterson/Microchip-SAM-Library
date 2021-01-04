@@ -3,12 +3,19 @@
 //
 // Created 11/10/2020 10:22:38 AM by Tim
 //
+// Note that the following symbols must be defined before including this file:
+//
+// FAT_SECT_BUF_CNT	- number of sector buffers
+// FAT_MAX_HANDLES	- max number of file handles
+// FAT_NUM_DRIVES	- number of drives
+//
+// This would typically be done in FatFileDef.h
+//
 //****************************************************************************
 
 #pragma once
 
 #include <FatFile\FatFile.h>
-
 
 
 // Invalid file name characters
@@ -71,7 +78,6 @@ struct FatOpState
 	{
 		ushort	op:8;
 		ushort	action:6;
-		ushort	fFillBuf:1;
 		ushort	fStartRead:1;
 	};
 	byte	handle;
@@ -243,8 +249,8 @@ protected:
 		ulong		ulTmp;
 		uint		uTmp;
 		uint		uOff;
+		uint		cb;
 		FatFile		*pf;
-		ushort		cb;
 		FatShortDirEnt	*pDir;
 		FatDateTime	daytime;
 		byte		*pbBuf;
@@ -257,7 +263,7 @@ protected:
 
 		if (IsError(err))
 		{
-			if (m_state.fFillBuf || m_state.fStartRead)
+			if (m_state.fStartRead)
 				goto Invalidate;
 
 			goto Finished;
@@ -266,26 +272,16 @@ protected:
 		if (m_state.fStartRead)
 		{
 			m_state.fStartRead = 0;
-			m_state.fFillBuf = 1;
-			err = StartRead(CurBufDesc()->block);
-			if (IsError(err))
-				goto Invalidate;
-			return;
-		}
-
-		if (m_state.fFillBuf)
-		{
-			m_state.fFillBuf = 0;
-			err = ReadData(CurBuf());
-			if (IsError(err))
+			err = ReadData(CurBufDesc()->block, CurBuf());
+			if (IsErrorNotBusy(err))
 			{
-	Invalidate:
+Invalidate:
 				m_state.fStartRead = 0;
-				m_state.fFillBuf = 0;
 				m_state.action = FATACT_None;
 				CurBufDesc()->block = INVALID_BUFFER;
 				goto Finished;
 			}
+			return;
 		}
 
 		pf = HandleToPointer(m_state.handle);
@@ -456,7 +452,7 @@ protected:
 		case FATOP_Open:
 		case FATOP_RenameOpen:
 			// Data is ready
-			err = SearchDir(pf, (FatDirEnt *)CurBuf());
+			err = SearchDir(pf);
 			if (err == FATERR_Busy)
 				return;
 
@@ -476,12 +472,6 @@ protected:
 			break;
 
 		case FATOP_BlockRead:
-			err = ReadData(m_state.pb);
-			if (IsError(err))
-				break;
-			//
-			// Fall into FATOP_Read
-			//
 		case FATOP_Read:
 		case FATOP_Write:
 			if (pf->m_flags.fNextClus)
@@ -599,29 +589,24 @@ protected:
 			// Not buffered - check for full sector
 			if (uOff == 0)
 			{
-				byte	op = m_state.op;
-
 				if (m_state.cb >= FAT_SECT_SIZE)
 				{
 					if (m_state.pb != NULL)
 					{
-						if (op == FATOP_Write)
+						if (m_state.op == FATOP_Write)
 						{
 							err = GetStatus();	// in case of 2 full sector writes
 							if (IsError(err))
 								break;
-							err = StartWrite(ulTmp);
-							if (IsError(err))
-								break;
-							err = WriteData(m_state.pb);
-							if (IsError(err))
+							err = WriteData(ulTmp, m_state.pb);
+							if (IsErrorNotBusy(err))
 								break;
 							cb = FAT_SECT_SIZE;
 							goto UpdatePos;
 						}
 						m_state.op = FATOP_BlockRead;
-						err = StartRead(ulTmp);
-						if (IsError(err))
+						err = ReadData(ulTmp, m_state.pb);
+						if (IsErrorNotBusy(err))
 							break;	// finished, with error
 						return;
 					}
@@ -631,7 +616,7 @@ protected:
 				else if (pf->m_CurPos >= pf->m_Length)
 				{
 	WriteSectorCheck:
-					if (op == FATOP_Write)
+					if (m_state.op == FATOP_Write)
 					{
 						// Writing past end (or whole sector), don't bother to read in sector
 						err = GetFreeBuf();
@@ -650,8 +635,12 @@ protected:
 		case FATOP_Enum:
 			err = Enum(pf);
 			if (IsError(err))
+			{
+				if (err != FATERR_Busy)
+					pf->Close();
 				break;
-			m_state.status = m_state.cchFolderName;
+			}
+			m_state.status = m_state.handle;
 			goto ReadFinished;
 
 		case FATOP_Seek:
@@ -974,11 +963,8 @@ protected:
 		pDesc = BufDescFromIndex(buf);
 		if (pDesc->fIsDirty)
 		{
-			err = StartWrite(pDesc->block);
-			if (IsError(err))
-				return err;
-			err = WriteData(BufFromIndex(buf));
-			if (IsError(err))
+			err = WriteData(pDesc->block, BufFromIndex(buf));
+			if (IsErrorNotBusy(err))
 				return err;
 		}
 		pDesc->SetFlagsDirty(false);
@@ -1333,27 +1319,14 @@ protected:
 
 	int Enum(FatFile *pf) NO_INLINE_ATTR
 	{
-		uint		wTmp;
-		ulong		dwTmp;
+		uint		oDir;
 
 		// Compute position within directory sector
-		wTmp = pf->m_DirEnt * sizeof(FatDirEnt);
-		if (wTmp == FAT_SECT_SIZE)
+		oDir = pf->m_DirEnt * sizeof(FatDirEnt);
+		if (oDir == FAT_SECT_SIZE)
 			return ReadNextDir(pf);
 
-		// In the middle of this sector
-		if (pf->IsRoot())
-			dwTmp = m_BPB.DataStartSec - m_BPB.RootSecCnt;
-		else
-			dwTmp = SectFromClus(pf->m_CurClus.Cluster);
-
-		dwTmp += pf->m_DirSecInClus;
-
-		if (FindBuffer(dwTmp))
-			return SearchDir(pf, (FatDirEnt *)(CurBuf() + wTmp), true);
-
-		// Not buffered, start reading
-		return StartBuf(dwTmp);
+		return SearchDir(pf, oDir, true);
 	}
 
 	//*********************************************************************
@@ -1944,15 +1917,29 @@ protected:
 
 	//****************************************************************************
 
-	int SearchDir(FatFile *pf, FatDirEnt *pDir, byte fFindAll = false) NO_INLINE_ATTR
+	int SearchDir(FatFile *pf, uint oDir = 0, bool fFindAll = false) NO_INLINE_ATTR
 	{
+		FatFile		*pfParent;
+		FatDirEnt	*pDir;
+		ulong		sect;
 		int			err;
 		int			cFree;
 		int			bTmp;
 		uint		wHasClus;
-		FatFile		*pfParent;
 		FileFlags	flags;
 		FileFlags	flagRoot;
+
+		// Make sure directory sector is in buffer
+		if (pf->IsRoot())
+			sect = m_BPB.DataStartSec - m_BPB.RootSecCnt;
+		else
+			sect = SectFromClus(pf->m_CurClus.Cluster);
+
+		sect += pf->m_DirSecInClus;
+		if (!FindBuffer(sect))
+			return StartBuf(sect);
+
+		pDir = (FatDirEnt *)(CurBuf() + oDir);
 
 		do
 		{
@@ -2170,6 +2157,7 @@ protected:
 	{
 		int		bPos;
 		int		bCnt;
+		int		err;
 		ulong	dwTmp;
 
 		// Convert current position to sector within cluster
@@ -2188,6 +2176,7 @@ protected:
 			if (bPos >= m_BPB.SecPerClus)
 			{
 				// We've run past the end of the cluster
+				bPos = 0;
 				bCnt = pf->m_CurClus.Cnt;
 				if (bCnt == 0)
 				{
@@ -2195,12 +2184,12 @@ protected:
 						return FATERR_FileNotFound;
 
 					// Need to go to the FAT
-					return StartFatRead(dwTmp);
+					err = StartFatRead(dwTmp);
+					goto NewClus;
 				}
 				else
 				{
 					// Just read next consecutive sector
-					bPos = 0;
 					dwTmp++;
 					pf->m_CurClus.Cnt = bCnt - 1;
 					pf->m_CurClus.Cluster = dwTmp;
@@ -2212,12 +2201,13 @@ protected:
 		}
 
 		dwTmp += bPos;
-
+		err = StartBuf(dwTmp);
+NewClus:
 		// Bump our position to match new sector
 		pf->m_DirSecInClus = bPos;
 		pf->m_DirEnt = 0;
 
-		return StartBuf(dwTmp);
+		return err;
 	}
 
 	//****************************************************************************

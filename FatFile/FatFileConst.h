@@ -34,8 +34,6 @@ enum FatSeek
 enum FAT_ERROR
 {
 	FATERR_None = STERR_None,
-	FATERR_EndOfFile,
-	FATERR_FoundFolder,
 
 	FATERR_Busy = STERR_Busy,
 	// Hardware errors fit here from STORAGE_ERROR

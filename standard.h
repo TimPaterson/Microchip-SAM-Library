@@ -6,6 +6,7 @@
 //****************************************************************************
 
 #pragma once
+#pragma pack(4)
 
 #include <sam.h>
 #include <sam_spec.h>

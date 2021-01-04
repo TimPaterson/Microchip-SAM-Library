@@ -23,15 +23,14 @@ class Storage
 public:
 	virtual int InitDev();
 	virtual int MountDev();
-	virtual int StartRead(ulong block);
-	virtual int ReadData(void *pv);
-	virtual int StartWrite(ulong block);
-	virtual int WriteData(void *pv);
+	virtual int ReadData(ulong Lba, void *pv, uint cBlock = 1);
+	virtual int WriteData(ulong Lba, void *pv, uint cBlock = 1);
 	virtual int GetStatus();
 	virtual int DismountDev();
 
 public:
-	static bool IsError(int err)	{ return err < 0; }
+	static bool IsError(int err)		{ return err < 0; }
+	static bool IsErrorNotBusy(int err)	{ return err < STERR_Busy; }
 };
 
 // Enumeration returned by MountDev

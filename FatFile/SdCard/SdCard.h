@@ -7,6 +7,14 @@
 
 #pragma once
 
+// Note that the following symbols must be defined at this point:
+//
+// FAT_SECT_BUF_CNT	- number of sector buffers
+// FAT_MAX_HANDLES	- max number of file handles
+// FAT_NUM_DRIVES	- number of drives
+//
+// This would typically be done in FatFileDef.h
+
 #include <FatFile/FatDrive.h>
 #include <FatFile/SdCard/SdConst.h>
 
@@ -15,7 +23,7 @@
 #define SDCARD_MAX_WRITE_WAIT	50000
 
 #define	ErrGoTo(e, loc)		do {err = e; goto loc;} while (0)
-#define	ErrGoDeselect(e)	do {err = e; goto Deselect;} while (0)
+#define	ErrGoDeselect(e)	ErrGoTo(e, Deselect)
 
 template<class T>
 class SdCard : public FatDrive, public T
@@ -42,6 +50,58 @@ class SdCard : public FatDrive, public T
 	// Implementation of Storage class
 	//*********************************************************************
 public:
+	virtual int GetStatus()
+	{
+		int		err;
+		uint	cBlock;
+
+		if (m_state == SDWAIT_None)
+			return STERR_None;
+
+		Select();
+		if (m_state == SDWAIT_Read)
+		{
+			err = ReadStatus();
+			if (err == STERR_None)
+			{
+				T::ReadBytes(m_pData, SDCARD_BLOCK_SIZE);
+
+				// Discard CRC bytes
+				SpiRead();
+				SpiRead();
+
+				m_state = SDWAIT_None;
+				Deselect();
+
+				// Start next block
+				cBlock = m_cBlock - 1;
+				if (cBlock > 0)
+					err = ReadData(++m_Lba, m_pData + SDCARD_BLOCK_SIZE, cBlock);
+				return err;
+			}
+			else if (err != STERR_Busy)
+				goto Finished;
+		}
+		else
+		{
+			err = SpiRead();
+			if (err == 0)
+			{
+				if (--m_cRetry == 0)
+					ErrGoTo(STERR_TimeOut, Finished);
+				ErrGoDeselect(STERR_Busy);
+			}
+
+			err = GetCardStatus();
+	Finished:
+			m_state = SDWAIT_None;
+		}
+
+	Deselect:
+		Deselect();
+		return err;
+	}
+
 	virtual int InitDev()
 	{
 		return STERR_None;
@@ -52,82 +112,51 @@ public:
 		return MountCard();
 	}
 
-	virtual int StartRead(ulong block)
+	virtual int ReadData(ulong Lba, void *pv, uint cBlock)
 	{
 		int		err;
 
+		m_Lba = Lba;
+		m_pData = (byte *)pv;
+		m_cBlock = cBlock;
+
 		// Convert 512-byte block to byte address if not hi cap.
 		if (m_fMount == SDMOUNT_LoCap)
-			block <<= 9;
+			Lba <<= 9;
 
 		Select();
-		err = SendCommand(SDCARD_READ_BLOCK, block);
+		err = SendCommand(SDCARD_READ_BLOCK, Lba);
 		Deselect();
 		if (err != SDCARD_R1_READY)
 			return MapR1Err(err);
 
 		// Access has started
-		m_fReadWriteWait = SDWAIT_Read;
+		m_state = SDWAIT_Read;
 		m_cRetry = SDCARD_MAX_READ_WAIT;
-		return STERR_None;
+
+		return STERR_Busy;
 	}
 
-	virtual int ReadData(void *pv)
-	{
-		int		err;
-		byte	*pb = (byte *)pv;
-
-		Select();
-		if (m_fReadWriteWait != SDWAIT_None)
-		{
-			err = ReadStatus();
-			if (err != STERR_Busy)
-				m_fReadWriteWait = SDWAIT_None;
-			if (IsError(err))
-				goto Deselect;
-		}
-
-		T::ReadBytes(pb, SDCARD_BLOCK_SIZE);
-
-		// Discard CRC bytes
-		SpiRead();
-		SpiRead();
-
-		err = STERR_None;
-	Deselect:
-		Deselect();
-		return err;
-	}
-
-	virtual int StartWrite(ulong block)
+	virtual int WriteData(ulong Lba, void *pv, uint cBlock)
 	{
 		byte	bTmp;
 		int		err;
 
+		m_Lba = Lba;
+		m_pData = (byte *)pv;
+		m_cBlock = cBlock;
+
 		// Convert 512-byte block to byte address if not hi cap.
 		if (m_fMount == SDMOUNT_LoCap)
-			block <<= 9;
+			Lba <<= 9;
 
 		Select();
-		bTmp = SendCommand(SDCARD_WRITE_BLOCK, block);
+		bTmp = SendCommand(SDCARD_WRITE_BLOCK, Lba);
 		if (bTmp != SDCARD_R1_READY)
 			ErrGoDeselect(MapR1Err(bTmp));
 
 		// Send data token
 		SpiWrite(SDCARD_START_TOKEN);
-		err = STERR_None;
-
-	Deselect:
-		Deselect();
-		return err;
-	}
-
-	virtual int WriteData(void *pv)
-	{
-		int		err;
-		byte	bTmp;
-
-		Select();
 		T::WriteBytes((byte *)pv, SDCARD_BLOCK_SIZE);
 
 		// Get data response
@@ -147,43 +176,9 @@ public:
 		}
 
 		// No error, set up time-out on write
-		m_fReadWriteWait = SDWAIT_Write;
+		m_state = SDWAIT_Write;
 		m_cRetry = SDCARD_MAX_WRITE_WAIT;
-		err = STERR_None;
-
-	Deselect:
-		Deselect();
-		return err;
-	}
-
-	virtual int GetStatus()
-	{
-		int		err;
-
-		if (m_fReadWriteWait == SDWAIT_None)
-			return STERR_None;
-
-		Select();
-		if (m_fReadWriteWait == SDWAIT_Read)
-		{
-			err = ReadStatus();
-			if (err != STERR_Busy)
-				goto Finished;
-		}
-		else
-		{
-			err = SpiRead();
-			if (err == 0)
-			{
-				if (--m_cRetry == 0)
-					ErrGoTo(STERR_TimeOut, Finished);
-				ErrGoDeselect(STERR_Busy);
-			}
-
-			err = GetCardStatus();
-	Finished:
-			m_fReadWriteWait = SDWAIT_None;
-		}
+		err = STERR_Busy;
 
 	Deselect:
 		Deselect();
@@ -397,7 +392,10 @@ protected:
 	// static (RAM) data
 	//*********************************************************************
 
+	byte	*m_pData;
+	ulong	m_Lba;
 	ushort	m_cRetry;
-	byte	m_fReadWriteWait;
+	byte	m_cBlock;
+	byte	m_state;
 	byte	m_fMount;
 };

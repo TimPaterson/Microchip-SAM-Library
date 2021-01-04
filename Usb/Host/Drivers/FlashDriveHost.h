@@ -7,21 +7,31 @@
 
 #pragma once
 
+// Note that the following symbols must be defined at this point:
+//
+// FAT_SECT_BUF_CNT	- number of sector buffers
+// FAT_MAX_HANDLES	- max number of file handles
+// FAT_NUM_DRIVES	- number of drives
+//
+// This would typically be done in FatFileDef.h
+
 #include <Usb/UsbMassStorage.h>
 #include <Usb/Host/UsbHostDriver.h>
+#include <FatFile/FatDrive.h>
 
 
-#define BLOCK_SIZE			512
+#define BLOCK_SIZE			FAT_SECT_SIZE
 #define MAX_PACKET_SIZE		64
 
 
-class FlashDriveHost : public UsbHostDriver
+class FlashDriveHost : public FatDrive, public UsbHostDriver
 {
 	//*********************************************************************
 	// Types
 	//*********************************************************************
 
 	static constexpr int TestReadyIntervalMs = 1;
+	static constexpr int ReadWriteTimeoutMs = 500;
 
 	struct CapacityList
 	{
@@ -63,9 +73,9 @@ class FlashDriveHost : public UsbHostDriver
 		DS_WaitConfig,
 		DS_TestReady,
 		DS_WaitReady,
-		DS_ReadMbr,
-		DS_WaitMbr,
-		DS_HaveMbr,
+		DS_DeviceReady,
+		DS_Busy,
+		DS_Error,
 	};
 
 	enum CommandState
@@ -73,7 +83,7 @@ class FlashDriveHost : public UsbHostDriver
 		CS_Idle,
 		CS_Read,
 		CS_WaitData,
-		CS_WriteData,
+		CS_Write,
 		CS_GetStatus,
 		CS_CheckStatusRetry,
 		CS_CheckStatus,
@@ -93,12 +103,32 @@ class FlashDriveHost : public UsbHostDriver
 	// Public Interface
 	//*********************************************************************
 
-	bool ReadData(ulong Lba, uint cBlock, void *pv) NO_INLINE_ATTR
+	virtual int GetStatus()
 	{
-		if (m_stCommand != CS_Idle)
+		int		err;
+
+		switch (m_stDrive)
+		{
+		case DS_Idle:
+			return STERR_None;
+
+		case DS_Error:
+			err = m_errCode;
+			m_errCode = STERR_None;
+			m_stDrive = DS_Idle;
+			return err;
+		}
+		return STERR_Busy;
+	}
+
+	virtual int ReadData(ulong Lba, void *pv, uint cBlock)
+	{
+		if (m_stDrive != DS_Idle)
 			return false;
 
+		m_stDrive = DS_Busy;
 		m_stCommand = CS_Read;
+		m_tmr.Start();
 
 		m_pvTransfer = pv;
 		FillCmdWrapper(cBlock * BLOCK_SIZE, SCSIOP_Read10);
@@ -108,13 +138,38 @@ class FlashDriveHost : public UsbHostDriver
 		bufCommand.Cmd.Read10.wTransferLength = cBlock;
 
 		UsbSendData(&bufCommand, sizeof bufCommand.Cmd);
-		return true;
+		return STERR_Busy;
 	}
+
+	virtual int WriteData(ulong Lba, void *pv, uint cBlock = 1)
+	{
+		if (m_stDrive != DS_Idle)
+			return false;
+
+		m_stDrive = DS_Busy;
+		m_stCommand = CS_Write;
+		m_tmr.Start();
+
+		m_pvTransfer = pv;
+		FillCmdWrapper(cBlock * BLOCK_SIZE, SCSIOP_Write10);
+		bufCommand.Cmd.bmCbwFlags = USBMSCF_DataOut;
+		bufCommand.Cmd.bCbwCbLength = sizeof(ScsiWrite10);
+		bufCommand.Cmd.Write10.dLba = Lba;
+		bufCommand.Cmd.Write10.wTransferLength = cBlock;
+
+		UsbSendData(&bufCommand, sizeof bufCommand.Cmd);
+		return STERR_Busy;
+	}
+
+	virtual int InitDev() { return STERR_None; }
+	virtual int MountDev() { return STERR_None; }
+	virtual int DismountDev() { return STERR_None; }
 
 	//*********************************************************************
 	// Helpers
 	//*********************************************************************
 
+protected:
 	void FillCmdWrapper(int cb, int opCode)
 	{
 		bufCommand.CmdHead.dCbwDataTransferLength = m_cbTransfer = cb;
@@ -172,7 +227,6 @@ class FlashDriveHost : public UsbHostDriver
 		FillCmdWrapper(0, SCSIOP_TestUnitReady);
 		bufCommand.Cmd.bCbwCbLength = sizeof(ScsiTestUnitReady);
 
-		DEBUG_PRINT("Testing ready\n");
 		UsbSendData(&bufCommand, sizeof bufCommand.Cmd);
 	}
 
@@ -270,6 +324,11 @@ class FlashDriveHost : public UsbHostDriver
 			m_stCommand = CS_GetStatus;
 			break;
 
+		case CS_Write:
+			m_stCommand = CS_GetStatus;
+			UsbSendData(m_pvTransfer, m_cbTransfer);
+			break;
+
 		case CS_CheckStatusRetry:
 		case CS_CheckStatus:
 			if (bufStatus.StatusHead.dCswSignature != CSW_SIGNATURE ||
@@ -288,7 +347,6 @@ class FlashDriveHost : public UsbHostDriver
 			}
 			else
 			{
-				DEBUG_PRINT("Transfer succeeded\n");
 				switch (m_cmdCur)
 				{
 				case SCSIOP_RequestSense:
@@ -308,14 +366,17 @@ class FlashDriveHost : public UsbHostDriver
 						break;
 					}
 					// UNDONE: report command failed
+					m_errCode = STERR_DevFail;
+					m_stDrive = DS_Error;
 					break;
 
 				case SCSIOP_Read10:
-					m_stDrive = DS_HaveMbr;
+				case SCSIOP_Write10:
+					m_stDrive = DS_Idle;
 					break;
 
 				case SCSIOP_TestUnitReady:
-					m_stDrive = DS_ReadMbr;
+					m_stDrive = DS_DeviceReady;
 				}
 				m_stCommand = CS_Idle;
 			}
@@ -328,6 +389,9 @@ class FlashDriveHost : public UsbHostDriver
 		if (iPipe == 0)
 		{
 			// UNDONE: Error on control pipe
+			DEBUG_PRINT("Error on control pipe\n");
+			m_errCode = STERR_DevFail;
+			m_stDrive = DS_Error;
 			return;
 		}
 
@@ -395,6 +459,15 @@ class FlashDriveHost : public UsbHostDriver
 
 		switch (m_stDrive)
 		{
+		case DS_Busy:
+			if (m_tmr.CheckDelay_ms(ReadWriteTimeoutMs))
+			{
+				DEBUG_PRINT("Timeout error\n");
+				m_errCode = STERR_TimeOut;
+				m_stDrive = DS_Error;
+			}
+			break;
+
 		case DS_SetConfig:
 			// Must set next state before call
 			m_stDrive = DS_WaitConfig;
@@ -408,18 +481,11 @@ class FlashDriveHost : public UsbHostDriver
 				m_stDrive = DS_WaitReady;
 				TestUnitReady();
 			}
-			break;;
-
-		case DS_ReadMbr:
-			DEBUG_PRINT("Reading MBR\n");
-			m_stDrive = DS_WaitMbr;
-			ReadData(0, 1, m_arDiskBuffer);
 			break;
 
-		case DS_HaveMbr:
-			DEBUG_PRINT("MBR:\n");
+		case DS_DeviceReady:
 			m_stDrive = DS_Idle;
-			break;
+			return HOSTACT_FlashReady;
 		}
 		return HOSTACT_None;
 	}
@@ -428,9 +494,10 @@ class FlashDriveHost : public UsbHostDriver
 	// Instance data
 	//*********************************************************************
 
+protected:
 	void	*m_pvTransfer;
 	ulong	m_Tag;
-	uint	m_cbTransfer;
+	ushort	m_cbTransfer;
 	Timer	m_tmr;
 	byte	m_bInPipe;
 	byte	m_bOutPipe;
@@ -439,9 +506,9 @@ class FlashDriveHost : public UsbHostDriver
 	byte	m_stCommand;
 	byte	m_cmdCur;
 	byte	m_bPipeCur;
+	sbyte	m_errCode;
 
 	// Large buffers at end
 	CmdBuffer		bufCommand;
 	StatusBuffer	bufStatus;
-	ulong			m_arDiskBuffer[BLOCK_SIZE / sizeof(ulong)];
 };
