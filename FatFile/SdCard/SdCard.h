@@ -47,7 +47,7 @@ class SdCard : public FatDrive, public T
 	};
 
 	//*********************************************************************
-	// Implementation of Storage class
+	// Implementation of Storage class in FatDrive
 	//*********************************************************************
 public:
 	virtual int GetStatus()

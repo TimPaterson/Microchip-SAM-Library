@@ -10,7 +10,10 @@
 #include <FatFile\FatSys.h>
 
 
-template<bool fNeedWdtReset = false>
+typedef void (*WaitLoopFunction_t)();
+
+
+template<WaitLoopFunction_t WaitLoopFunction>
 class FatSysWait : public FatSys
 {
 public:
@@ -20,8 +23,7 @@ public:
 
 		do
 		{
-			if (fNeedWdtReset)
-				wdt_reset();
+			WaitLoopFunction();
 			status = GetStatus(handle);
 		} while (status == FATERR_Busy);
 
@@ -30,11 +32,11 @@ public:
 
 	//****************************************************************************
 
-	static int OpenWait(const char *pchName, uint hFolder = 0, uint flags = OPENFLAG_File | OPENFLAG_Folder, int cchName = 0) NO_INLINE_ATTR
+	static int OpenWait(const char *pchName, int hFolder = 0, uint flags = OPENFLAG_File | OPENFLAG_Folder, int cchName = 0) NO_INLINE_ATTR
 	{
 		int		err;
 
-		err = Open(pchName, hFolder, flags, cchName);
+		err = StartOpen(pchName, hFolder, flags, cchName);
 		if (IsError(err))
 			return err;
 
@@ -54,7 +56,7 @@ public:
 	{
 		int		err;
 
-		err = Close(handle);
+		err = StartClose(handle);
 		if (err == FATERR_Busy)
 			err = WaitResult(handle);
 		return err;
@@ -66,7 +68,7 @@ public:
 	{
 		int		err;
 
-		err = Read(handle, pv, cb);
+		err = StartRead(handle, pv, cb);
 		if (IsError(err))
 			return err;
 
@@ -79,7 +81,7 @@ public:
 	{
 		int		err;
 
-		err = Write(handle, pv, cb);
+		err = StartWrite(handle, pv, cb);
 		if (IsError(err))
 			return err;
 
@@ -88,17 +90,21 @@ public:
 
 	//*********************************************************************
 
-	static int DeleteWait(const char *pchName, uint hFolder = 0, uint flags = OPENFLAG_File | OPENFLAG_Folder, int cchName = 0) NO_INLINE_ATTR
+	static int DeleteWait(const char *pchName, int hFolder = 0, uint flags = OPENFLAG_File | OPENFLAG_Folder, int cchName = 0) NO_INLINE_ATTR
 	{
 		uint	hFile;
 		int		err;
 
-		err = Open(pchName, hFolder, flags | OPENFLAG_Delete, cchName);
+		err = StartOpen(pchName, hFolder, flags | OPENFLAG_Delete, cchName);
 		if (IsError(err))
 			return err;
 
 		hFile = err;
-		err = Delete(hFile);
+		err = WaitResult(hFile);
+		if (IsError(err))
+			return err;
+
+		err = StartDelete(hFile);
 		if (!(IsError(err)))
 			err = WaitResult(hFile);
 
@@ -112,7 +118,7 @@ public:
 		uint	hFile;
 		int		err;
 
-		err = EnumNext(handle, pch, cbMax);
+		err = StartEnumNext(handle, pch, cbMax);
 		if (IsError(err))
 			return err;
 
@@ -128,24 +134,26 @@ public:
 
 	//*********************************************************************
 
-	static int GetDateWait(uint handle) NO_INLINE_ATTR
+	static FatDateTime GetDateWait(uint handle) NO_INLINE_ATTR
 	{
-		int		err;
+		FatDateTime		date;
 
-		err = StartGetDate(handle);
-		if (IsError(err))
-			return err;
+		if (IsError(StartGetDate(handle)) || IsError(WaitResult(handle)))
+		{
+			date.ul = (uint)-1;
+			return date;
+		}
 
-		return WaitResult(handle);
+		return GetFatDate(handle);
 	}
 
 	//*********************************************************************
 
-	static int RenameWait(const char *pchName, uint hFolder, uint hFileSrc, int cchName = 0) NO_INLINE_ATTR
+	static int RenameWait(const char *pchName, int hFolder, uint hFileSrc, int cchName = 0) NO_INLINE_ATTR
 	{
 		int		err;
 
-		err = Rename(pchName, hFolder, hFileSrc, cchName);
+		err = StartRename(pchName, hFolder, hFileSrc, cchName);
 		if (IsError(err))
 			return err;
 
@@ -159,7 +167,7 @@ public:
 		ulong	ulCurPos;
 		int		err;
 
-		ulCurPos = Seek(handle, ulPos, origin);
+		ulCurPos = StartSeek(handle, ulPos, origin);
 		if (ulCurPos != (ulong)-1)
 		{
 			err = WaitResult(handle);
@@ -175,12 +183,10 @@ public:
 	{
 		int		err;
 
-		err = Mount(drive);
+		err = StartMount(drive);
 		while (err == FATERR_Busy)
 		{
-			if (fNeedWdtReset)
-				wdt_reset();
-
+			WaitLoopFunction();
 			err = GetDriveStatus(drive);
 		}
 

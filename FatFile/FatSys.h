@@ -18,7 +18,7 @@
 #include <FatFile/FatDrive.h>
 
 
-#define FAT_DRIVES_LIST(...) FatDrive *FatSys::m_arDrives[FAT_NUM_DRIVES] = {__VA_ARGS__};
+#define FAT_DRIVES_LIST(...) FatDrive *const FatSys::m_arDrives[FAT_NUM_DRIVES] = {__VA_ARGS__};
 
 class FatSys
 {
@@ -27,9 +27,10 @@ class FatSys
 	//*********************************************************************
 
 public:
+	static int HandleOfDrive(int drv)	{return -drv;}
 	static bool IsError(int err)		{return FatDrive::IsError(err);}
 	static bool IsErrorNotBusy(int err)	{return FatDrive::IsErrorNotBusy(err);}
-	static byte IsFolder(uint handle)	{return HandleToPointer(handle)->IsFolder();}
+	static bool IsFolder(uint handle)	{return HandleToPointer(handle)->IsFolder();}
 	static FatDateTime GetFatDate(uint handle)	
 		{return DriveToPointer(HandleToPointer(handle)->GetDrive())->m_state.DateTime;}
 	static byte *GetDataBuf()			{ return FatDrive::s_pvDataBuf; }
@@ -44,18 +45,18 @@ public:
 	*/
 
 public:
-	static int GetDriveStatus(uint bDrive)
+	static int GetDriveStatus(uint drive)
 	{
 		FatDrive	*pDrive;
 
 		// Perform pending operation for each drive
-		for (byte drive = 0; drive < FAT_NUM_DRIVES; drive++)
+		for (uint drvCur = 0; drvCur < FAT_NUM_DRIVES; drvCur++)
 		{
-			pDrive = DriveToPointer(drive);
+			pDrive = DriveToPointer(drvCur);
 			pDrive->PerformOp();
 		}
 
-		pDrive = DriveToPointer(bDrive);
+		pDrive = DriveToPointer(drive);
 		return pDrive->Status();
 	}
 
@@ -93,7 +94,7 @@ public:
 
 	//****************************************************************************
 
-	static int Mount(uint drive)
+	static int StartMount(uint drive)
 	{
 		FatDrive	*pDrive;
 
@@ -110,19 +111,19 @@ public:
 
 	//****************************************************************************
 
-	static int Open(const char *pchName, uint hFolder = 0, uint flags = OPENFLAG_File | OPENFLAG_Folder, int cchName = 0) NO_INLINE_ATTR
+	static int StartOpen(const char *pchName, int hFolder = 0, uint flags = OPENFLAG_File | OPENFLAG_Folder, int cchName = 0) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatDrive	*pDrive;
 		uint		drive;
-		int			h;
+		int			hFile;
 		int			err;
 
-		h = GetHandle(hFolder, flags);
-		pf = HandleToPointer(h);
+		hFile = GetHandle(hFolder, flags);
+		pf = HandleToPointer(hFile);
 
-		if (IsError(h))
-			return h;
+		if (IsError(hFile))
+			return hFile;
 
 		if (cchName == 0)
 			cchName = strlen(pchName);
@@ -166,7 +167,7 @@ public:
 
 		pDrive->m_state.cchName = cchName;
 		pDrive->m_state.pchName = (char *)pchName;
-		pDrive->m_state.handle = h;
+		pDrive->m_state.handle = hFile;
 		pDrive->m_state.info.OpenFlags = flags;
 
 		pDrive->m_state.cchFolderName = pDrive->ParseFolder();
@@ -181,7 +182,7 @@ public:
 			// If no file name, return dup of hFolder
 			pDrive->m_state.status = FATERR_None;
 			pDrive->m_state.op = FATOP_Status;
-			return h;
+			return hFile;
 		}
 
 		pDrive->m_state.op = FATOP_Open;
@@ -194,12 +195,35 @@ public:
 			return err;
 		}
 
-		return h;
+		return hFile;
 	}
 
 	//****************************************************************************
+	// Use Close() if file was not written to
 
 	static int Close(uint handle) NO_INLINE_ATTR
+	{
+		FatFile	*pf;
+
+		if (handle != 0)
+		{
+			if (handle > FAT_MAX_HANDLES)
+				return FATERR_InvalidHandle;
+
+			pf = HandleToPointer(handle);
+			if (pf->IsDirty())
+				return FATERR_DirtyNotClosed;
+
+			pf->Close();
+		}
+
+		return FATERR_None;
+	}
+
+	//****************************************************************************
+	// Use StartClose() if file could have been written to
+
+	static int StartClose(uint handle) NO_INLINE_ATTR
 	{
 		int	err;
 
@@ -208,7 +232,7 @@ public:
 			if (handle > FAT_MAX_HANDLES)
 				return FATERR_InvalidHandle;
 
-			err = Flush(handle);
+			err = StartFlush(handle);
 			if (IsError(err))
 				return err;
 
@@ -220,7 +244,7 @@ public:
 
 	//****************************************************************************
 
-	static int Flush(uint handle) NO_INLINE_ATTR
+	static int StartFlush(uint handle) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatDrive	*pDrive;
@@ -248,7 +272,7 @@ public:
 
 	//****************************************************************************
 
-	static int FlushAll(uint drive) NO_INLINE_ATTR
+	static int StartFlushAll(uint drive) NO_INLINE_ATTR
 	{
 		FatDrive	*pDrive;
 
@@ -263,7 +287,7 @@ public:
 
 	//****************************************************************************
 
-	static int StartEnum(uint handle, uint flags = OPENFLAG_File | OPENFLAG_Folder) NO_INLINE_ATTR
+	static int EnumBegin(uint handle, uint flags = OPENFLAG_File | OPENFLAG_Folder) NO_INLINE_ATTR
 	{
 		int			h;
 		FatFile		*pf;
@@ -281,7 +305,7 @@ public:
 
 	//****************************************************************************
 
-	static int EnumNext(uint hParent, char *pchNameBuf, int cbBuf) NO_INLINE_ATTR
+	static int StartEnumNext(uint hParent, char *pchNameBuf, int cbBuf) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatFile		*pfParent;
@@ -338,7 +362,7 @@ public:
 
 	//****************************************************************************
 
-	static int Delete(uint handle) NO_INLINE_ATTR
+	static int StartDelete(uint handle) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatDrive	*pDrive;
@@ -361,7 +385,7 @@ public:
 
 	//****************************************************************************
 
-	static int Rename(const char *pchName, uint hFolder, uint hSrc, int cchName = 0) NO_INLINE_ATTR
+	static int StartRename(const char *pchName, int hFolder, uint hSrc, int cchName = 0) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatDrive	*pDrive;
@@ -376,7 +400,7 @@ public:
 			return FATERR_Busy;
 
 		pDrive->m_state.info.hParent = hSrc;
-		err = Open(pchName, hFolder, OPENFLAG_CreateNew, cchName);
+		err = StartOpen(pchName, hFolder, OPENFLAG_CreateNew, cchName);
 		if (IsError(err))
 			return err;
 
@@ -386,21 +410,21 @@ public:
 
 	//****************************************************************************
 
-	static int Read(uint handle, void *pv, uint cb)
+	static int StartRead(uint handle, void *pv, uint cb)
 	{
 		return ReadWrite(handle, pv, cb, FATOP_Read);
 	}
 
 	//****************************************************************************
 
-	static int Write(uint handle, void *pv, uint cb)
+	static int StartWrite(uint handle, void *pv, uint cb)
 	{
 		return ReadWrite(handle, pv, cb, FATOP_Write);
 	}
 
 	//****************************************************************************
 
-	static ulong Seek(uint handle, ulong ulPos, int origin = FAT_SEEK_SET) NO_INLINE_ATTR
+	static ulong StartSeek(uint handle, ulong ulPos, int origin = FAT_SEEK_SET) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatDrive	*pDrive;
@@ -492,7 +516,7 @@ public:
 	//*********************************************************************
 
 protected:
-	static FatDrive *DriveToPointer(byte drive)	{ return m_arDrives[drive]; }
+	static FatDrive *DriveToPointer(uint drive)	{ return m_arDrives[drive]; }
 	static FatFile *HandleToPointer(int h)	{return FatDrive::HandleToPointer(h);}
 
 	//****************************************************************************
@@ -542,46 +566,50 @@ protected:
 
 	//****************************************************************************
 
-	static int GetHandle(uint hFolder, uint flags) NO_INLINE_ATTR
+	static int GetHandle(int hFolder, uint flags) NO_INLINE_ATTR
 	{
 		FatFile		*pfFolder;
 		FatFile		*pf;
-		byte		h;
+		uint		hFile;
 
  		pf = FatDrive::GetHandleList();
 
-		if (hFolder != 0)
-		{
-			pfFolder = HandleToPointer(hFolder);
-			if (!pfFolder->IsOpen() || !pfFolder->IsFolder())
-				return FATERR_InvalidHandle;
-		}
-
 		// Make sure we have an unused handle available
-		for (h = 1; ;)
+		for (hFile = 1; ;)
 		{
 			if (!pf->IsOpen())
 				break;
 			pf++;
-			h++;
+			hFile++;
 
-			if (h > FAT_MAX_HANDLES)
+			if (hFile > FAT_MAX_HANDLES)
 				return FATERR_NoHandles;
 		}
 
-		// Duplicate handle
-		if (hFolder == 0)
-			DriveToPointer(0)->InitRootSearch(pf);
-		else
-			HandleToPointer(hFolder)->DupFolder(pf);
+		if (hFolder > 0)
+		{
+			pfFolder = HandleToPointer(hFolder);
+			if (!pfFolder->IsOpen() || !pfFolder->IsFolder())
+				return FATERR_InvalidHandle;
 
-		return h;
+			HandleToPointer(hFolder)->DupFolder(pf);
+		}
+		else
+		{
+			// hFolder is negative of drive number to search from root
+			if (hFolder <= -FAT_NUM_DRIVES)
+				return FATERR_InvalidHandle;
+
+			DriveToPointer(-hFolder)->InitRootSearch(pf);
+		}
+
+		return hFile;
 	}
 
 	//*********************************************************************
-	// static (RAM) data
+	// const (flash) data
 	//*********************************************************************
 
 protected:
-	static FatDrive	*m_arDrives[FAT_NUM_DRIVES];
+	static FatDrive	*const m_arDrives[FAT_NUM_DRIVES];
 };

@@ -136,7 +136,7 @@
 // If your SAM MCU supports hardware transmitter enable, then it will control 
 // the transmitter driver in hardware using the correct pad assignment.
 //
-// If your SAME MCU does NOT support hardware transmitter enable, then an
+// If your SAM MCU does NOT support hardware transmitter enable, then an
 // alternate macro is available: DECLARE_USART_HALF. It requires that
 // two functions be defined that enable and disable the transmitter driver.
 // The function names are fixed as SERCOMn_DriverOn() and SERCOMn_DriverOff(),
@@ -149,7 +149,6 @@
 // inline void SERCOM1_DriverOff(){	ClearPins(Driver_PIN); }
 // DECLARE_USART_HALF(SERCOM1, 50, 50)	SerialHalfDuplex;
 // 
-//
 // Otherwise everything else about DECLARE_USART applies to DECLARE_USART_HALF.
 //
 // *********

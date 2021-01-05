@@ -39,8 +39,7 @@ enum FAT_ERROR
 	// Hardware errors fit here from STORAGE_ERROR
 	//
 	// File system errors
-	FATERR_NotAvail = STERR_Last,		// -10: servicing another operation
-	NEG_ENUM(FATERR_CantMount),			// -11
+	FATERR_CantMount = STERR_Last,		// -11
 	NEG_ENUM(FATERR_InvalidDrive),		// -12
 	NEG_ENUM(FATERR_NoHandles),			// -13
 	NEG_ENUM(FATERR_InvalidHandle),		// -14
@@ -52,5 +51,6 @@ enum FAT_ERROR
 	NEG_ENUM(FATERR_InvalidFileName),	// -20
 	NEG_ENUM(FATERR_FormatError),		// -21
 	NEG_ENUM(FATERR_InternalError),		// -22
+	NEG_ENUM(FATERR_DirtyNotClosed),	// -23
 };
 

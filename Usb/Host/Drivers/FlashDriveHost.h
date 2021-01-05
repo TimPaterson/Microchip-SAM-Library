@@ -100,7 +100,7 @@ class FlashDriveHost : public FatDrive, public UsbHostDriver
 	};
 
 	//*********************************************************************
-	// Public Interface
+	// Implementation of Storage class in FatDrive
 	//*********************************************************************
 
 	virtual int GetStatus()
@@ -117,6 +117,10 @@ class FlashDriveHost : public FatDrive, public UsbHostDriver
 			m_errCode = STERR_None;
 			m_stDrive = DS_Idle;
 			return err;
+
+		default:
+			Process();
+			break;
 		}
 		return STERR_Busy;
 	}
@@ -124,7 +128,7 @@ class FlashDriveHost : public FatDrive, public UsbHostDriver
 	virtual int ReadData(ulong Lba, void *pv, uint cBlock)
 	{
 		if (m_stDrive != DS_Idle)
-			return false;
+			return STERR_NotAvail;
 
 		m_stDrive = DS_Busy;
 		m_stCommand = CS_Read;
@@ -144,7 +148,7 @@ class FlashDriveHost : public FatDrive, public UsbHostDriver
 	virtual int WriteData(ulong Lba, void *pv, uint cBlock = 1)
 	{
 		if (m_stDrive != DS_Idle)
-			return false;
+			return STERR_NotAvail;
 
 		m_stDrive = DS_Busy;
 		m_stCommand = CS_Write;
@@ -231,7 +235,7 @@ protected:
 	}
 
 	//*********************************************************************
-	// Override of virtual functions
+	// Override of USBhost virtual functions
 	//*********************************************************************
 
 	virtual UsbHostDriver *IsDriverForDevice(ulong ulVidPid, ulong ulClass, UsbConfigDesc *pConfig)

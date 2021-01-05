@@ -15,7 +15,8 @@ enum STORAGE_ERROR
 	NEG_ENUM(STERR_DevFail),		// -7
 	NEG_ENUM(STERR_InvalidAddr),	// -8
 	NEG_ENUM(STERR_TimeOut),		// -9
-	NEG_ENUM(STERR_Last),			// -10
+	NEG_ENUM(STERR_NotAvail),		// -10
+	NEG_ENUM(STERR_Last),			// -11
 };
 
 class Storage

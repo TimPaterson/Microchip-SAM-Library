@@ -221,7 +221,7 @@ public:
 		return StartBuf(0);
 	}
 
-	uint IsMounted()	{return m_BPB.fFat16 || m_BPB.fFat32;}
+	bool IsMounted()	{return m_BPB.fFat16 || m_BPB.fFat32;}
 
 	void Dismount()		{m_BPB.bFlags = 0;}
 
