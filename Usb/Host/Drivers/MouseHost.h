@@ -11,14 +11,6 @@
 #include <Usb/Host/UsbHostDriver.h>
 
 
-struct MouseParam
-{
-	int		minX;
-	int		maxX;
-	int		minY;
-	int		maxY;
-};
-
 union ButtonState
 {
 	ulong	ul;
@@ -75,8 +67,11 @@ class MouseHost : public UsbHostDriver
 	//*********************************************************************
 
 	public:
-		int	GetX()	{ return m_curX; }
-		int	GetY()	{ return m_curY; }
+		int	GetX()					{ return m_curX; }
+		int	GetY()					{ return m_curY; }
+		void SetPos(int x, int y)	{ m_curX = x;  m_curY = y; }
+
+	public:
 		ButtonState GetButtons()
 		{
 			ButtonState btns = m_stButtons;
@@ -86,10 +81,10 @@ class MouseHost : public UsbHostDriver
 
 		void Init(int maxX, int maxY, int minX = 0, int minY = 0)
 		{
-			m_parm.minX = minX;
-			m_parm.minY = minY;
-			m_parm.maxX = maxX;
-			m_parm.maxY = maxY;
+			m_minX = minX;
+			m_minY = minY;
+			m_maxX = maxX;
+			m_maxY = maxY;
 		}
 
 	//*********************************************************************
@@ -203,7 +198,17 @@ class MouseHost : public UsbHostDriver
 
 		case DS_HaveMove:
 			m_curX += m_bufMouse.moveX;
+			if (m_curX > m_maxX)
+				m_curX = m_maxX;
+			if (m_curX < m_minX)
+				m_curX = m_minX;
+
 			m_curY += m_bufMouse.moveY;
+			if (m_curY > m_maxY)
+				m_curY = m_maxY;
+			if (m_curY < m_minY)
+				m_curY = m_minY;
+
 			stBtnDwn = m_bufMouse.bButtons;
 			stBtnChg = m_stButtons.btnDown ^ stBtnDwn;
 			// Edge-triggered states (start, end) are kept until read.
@@ -241,13 +246,16 @@ protected:
 	// Instance data
 	//*********************************************************************
 
-	// USB buffer must 4-byte aligned
-	MouseBuffer	m_bufMouse ALIGNED_ATTR(int);
-
-	MouseParam	m_parm;
+	// USB buffer must be 4-byte aligned
+	MouseBuffer	m_bufMouse ALIGNED_ATTR(long);
 	ButtonState	m_stButtons;
+
 	int		m_curX;
 	int		m_curY;
+	int		m_minX;
+	int		m_maxX;
+	int		m_minY;
+	int		m_maxY;
 
 	bool	m_fPollStart;
 	byte	m_stDev;

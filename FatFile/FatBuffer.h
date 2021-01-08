@@ -37,7 +37,7 @@ class FatBuffer
 	//*********************************************************************
 
 public:
-	static byte *BufFromIndex(byte iBuf)	{return s_arSectBuf[iBuf];}
+	static byte *BufFromIndex(byte iBuf)	{return (byte *)&s_arSectBuf[iBuf];}
 	static byte CurBufIndex()				{return s_nextBuf;}
 	static byte *CurBuf()					{return BufFromIndex(CurBufIndex());}
 	static byte *EndCurBuf()				{return BufFromIndex(CurBufIndex()) + FAT_SECT_SIZE;}
@@ -123,6 +123,7 @@ protected:
 	inline static byte			s_nextBuf;
 	inline static FatBufDesc	*s_pDesc;
 	inline static FatBufDesc	s_desc[FAT_SECT_BUF_CNT];
+	// Ensure buffers are aligned on 32-bit boundary
 	// Two-dimensional array declarations always seem ass-backwards to me:
-	inline static byte			s_arSectBuf[FAT_SECT_BUF_CNT][FAT_SECT_SIZE];
+	inline static uint32_t		s_arSectBuf[FAT_SECT_BUF_CNT][FAT_SECT_SIZE / sizeof(uint32_t)];
 };
