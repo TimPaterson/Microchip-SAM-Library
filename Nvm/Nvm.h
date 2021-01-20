@@ -29,7 +29,7 @@ public:
 
 	static void EraseRowReady(void *pv)
 	{
-		NVMCTRL->ADDR.reg = (uint)pv >> 1;
+		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
 		EraseRowReady();
 	}
 
@@ -40,7 +40,7 @@ public:
 
 	static void WritePageReady(void *pv)
 	{
-		NVMCTRL->ADDR.reg = (uint)pv >> 1;
+		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
 		WritePageReady();
 	}
 
@@ -56,7 +56,7 @@ public:
 	static void NO_INLINE_ATTR EraseRow(void *pv)
 	{
 		WaitReady();
-		NVMCTRL->ADDR.reg = (uint)pv >> 1;
+		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
 		EraseRowReady();
 	}
 
@@ -69,7 +69,7 @@ public:
 	static void NO_INLINE_ATTR WritePage(void *pv)
 	{
 		WaitReady();
-		NVMCTRL->ADDR.reg = (uint)pv >> 1;
+		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
 		WritePageReady();
 	}
 
@@ -85,7 +85,7 @@ public:
 
 	static void EraseRwweeRowReady(void *pv)
 	{
-		NVMCTRL->ADDR.reg = (uint)pv >> 1;
+		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
 		EraseRwweeRowReady();
 	}
 
@@ -96,7 +96,7 @@ public:
 
 	static void WriteRwweePageReady(void *pv)
 	{
-		NVMCTRL->ADDR.reg = (uint)pv >> 1;
+		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
 		WriteRwweePageReady();
 	}
 
@@ -112,7 +112,7 @@ public:
 	static void NO_INLINE_ATTR EraseRwweeRow(void *pv)
 	{
 		WaitReady();
-		NVMCTRL->ADDR.reg = (uint)pv >> 1;
+		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
 		EraseRwweeRowReady();
 	}
 
@@ -125,7 +125,7 @@ public:
 	static void NO_INLINE_ATTR WriteRwweePage(void *pv)
 	{
 		WaitReady();
-		NVMCTRL->ADDR.reg = (uint)pv >> 1;
+		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
 		WriteRwweePageReady();
 	}
 
@@ -143,12 +143,12 @@ public:
 
 	static void NO_INLINE_ATTR memcpy32(void *pvDest, void *pvSrc, int cb)
 	{
-		uint	*puDest;
-		uint	*puSrc;
+		ulong	*puDest;
+		ulong	*puSrc;
 	
-		puDest = (uint *)pvDest;
-		puSrc = (uint *)pvSrc;
-		for (cb /= sizeof(uint); cb > 0; cb--)
+		puDest = (ulong *)pvDest;
+		puSrc = (ulong *)pvSrc;
+		for (cb /= sizeof(ulong); cb > 0; cb--)
 			*puDest++ = *puSrc++;
 	}
 };

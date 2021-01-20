@@ -105,6 +105,9 @@ protected:
 		RowDesc	*pRow;
 		RowDesc	*pRowCur;
 
+		if (!Nvm::IsReady())
+			return;
+
 		iRow = m_iCurRow;
 		if (iRow >= iRowCount)
 		{
@@ -152,9 +155,6 @@ protected:
 				// Fall into ST_WaitErase state
 				//
 			case ST_WaitErase:
-				if (!Nvm::IsReady())
-					return;
-
 				// Clear the row we're using
 				Nvm::EraseRwweeRowReady(pRow);
 				m_iCurPage = 1;	// Skip first page with row header for now
@@ -162,9 +162,6 @@ protected:
 				return;
 
 			case ST_WaitFill:
-				if (!Nvm::IsReady())
-					return;
-
 				if (m_iCurPage < NVMCTRL_ROW_PAGES)
 				{
 					// Write to the page buffer. These are the pages after
