@@ -14,7 +14,7 @@
 
 #define DEFINE_USB_ISR()			void USB_Handler() { USBhost::UsbIsr(); }
 #define USB_DRIVER_LIST(enm, ...)	\
-	USBhost::DeviceDrivers_t const USBhost::DeviceDrivers = \
+	USBhost::DeviceDrivers_t const USBhost::s_DeviceDrivers = \
 	{static_cast<EnumerationDriver *>(enm), {__VA_ARGS__}};
 
 class EnumerationDriver;
@@ -70,7 +70,7 @@ public:
 		UsbHostDriver	*EnumDriver;
 		UsbHostDriver	*arHostDriver[HOST_DRIVER_COUNT];
 	};
-		
+
 protected:
 	static constexpr int SetupBufSize = 256;
 
@@ -79,7 +79,7 @@ protected:
 	union PipeDescriptor
 	{
 		UsbHostDescBank		HostDescBank[2];
-		struct  
+		struct
 		{
 			UsbHostDescBank	Bank0;
 			ulong			Reserved[2];	// ADDR and PCKSIZE fields
@@ -128,11 +128,11 @@ public:
 		UsbCtrl::Init();
 		USB->HOST.CTRLA.reg = USB_CTRLA_MODE_HOST | USB_CTRLA_ENABLE;
 		// Enable Connect/Disconnect and Reset interrupts
-		USB->HOST.INTENSET.reg = USB_HOST_INTENSET_DCONN | 
+		USB->HOST.INTENSET.reg = USB_HOST_INTENSET_DCONN |
 			USB_HOST_INTENSET_DDISC | USB_HOST_INTENSET_RST;
 
 		// Set pointer to pipe descriptor in RAM
-		USB->HOST.DESCADD.reg = (uint32_t)&PipeDesc;
+		USB->HOST.DESCADD.reg = (uint32_t)&s_arPipeDesc;
 	};
 
 	static void Enable()
@@ -151,37 +151,37 @@ public:
 
 	static int Process()
 	{
-		if (stEnum != ES_Idle)
+		if (s_stEnum != ES_Idle)
 		{
-			if (stSetup == SS_Idle)
+			if (s_stSetup == SS_Idle)
 				ProcessEnum();
 		}
 		else
 		{
-			if (actHost != HOSTACT_None)
+			if (s_actHost != HOSTACT_None)
 			{
-				int act = actHost;
-				actHost = HOSTACT_None;
+				int act = s_actHost;
+				s_actHost = HOSTACT_None;
 				return act;
 			}
 
-			if (pActiveDriver != NULL)
-				return pActiveDriver->Process();
+			if (s_pActiveDriver != NULL)
+				return s_pActiveDriver->Process();
 		}
 
 		return HOSTACT_None;
 	}
 
-	static UsbHostDriver *GetDriver()	{ return pActiveDriver; }
+	static UsbHostDriver *GetDriver()	{ return s_pActiveDriver; }
 
-	static bool IsControlPipeReady()	{ return stSetup == SS_Idle; }
+	static bool IsControlPipeReady()	{ return s_stSetup == SS_Idle; }
 
 	static bool ControlTransfer(UsbHostDriver *pDriver, void *pv, uint64_t u64packet) NO_INLINE_ATTR
 	{
 		if (!IsControlPipeReady())
 			return false;
 
-		SetupBuffer.u64 = u64packet;
+		s_SetupBuffer.u64 = u64packet;
 		StartSetup(pDriver, pv);
 		return true;
 	}
@@ -219,18 +219,18 @@ public:
 		uint	interval;
 		UsbHostPipe		*pPipe;
 		PipeDescriptor	*pDesc;
-		
+
 		// Find a free pipe
 		for (i = 1; i < HOST_PIPE_COUNT; i++)
 		{
-			pDesc = &PipeDesc[i];
+			pDesc = &s_arPipeDesc[i];
 			pPipe = &USB->HOST.HostPipe[i];
 
 			if (pDesc->pDriver == NULL)
 			{
 				pDesc->pDriver = pDriver;
 				pDesc->Bank0.CTRL_PIPE.bit.PEPNUM = pEp->bEndpointAddr;
-				pDesc->Bank0.CTRL_PIPE.bit.PDADDR = DeviceDrivers.EnumDriver->m_bAddr;
+				pDesc->Bank0.CTRL_PIPE.bit.PDADDR = s_DeviceDrivers.EnumDriver->m_bAddr;
 				pDesc->Bank0.PCKSIZE.reg = USB_DEVICE_PCKSIZE_SIZE(GetPacketSize(pEp->wMaxPacketSize));
 
 				switch (pEp->bmAttributes)
@@ -264,7 +264,7 @@ public:
 	{
 		int		ep;
 
-		ep = PipeDesc[iPipe].Bank0.CTRL_PIPE.bit.PEPNUM;
+		ep = s_arPipeDesc[iPipe].Bank0.CTRL_PIPE.bit.PEPNUM;
 		if (USB->HOST.HostPipe[iPipe].PCFG.bit.PTOKEN == USB_HOST_PCFG_PTOKEN_IN)
 			ep |= USBRT_DirIn;
 		return ep;
@@ -273,17 +273,17 @@ public:
 	static void FreePipe(int iPipe)
 	{
 		USB->HOST.HostPipe[iPipe].PCFG.reg = USB_HOST_PCFG_PTYPE_DISABLE;
-		PipeDesc[iPipe].pDriver = NULL;
+		s_arPipeDesc[iPipe].pDriver = NULL;
 	}
 
 	static void FreeAllPipes(UsbHostDriver *pDriver) NO_INLINE_ATTR
 	{
 		int		i;
-		
+
 		// Find any pipes assigned to this driver
 		for (i = 1; i < HOST_PIPE_COUNT; i++)
 		{
-			if (PipeDesc[i].pDriver == pDriver)
+			if (s_arPipeDesc[i].pDriver == pDriver)
 				FreePipe(i);
 		}
 	}
@@ -293,11 +293,11 @@ public:
 		PipeDescriptor	*pDesc;
 		UsbHostPipe		*pPipe;
 
-		pDesc = &PipeDesc[iPipe];
+		pDesc = &s_arPipeDesc[iPipe];
 		pPipe = &USB->HOST.HostPipe[iPipe];
 
 		pDesc->Bank0.ADDR.reg = (ulong)pv;
-		pDesc->Bank0.PCKSIZE.reg = USB_HOST_PCKSIZE_SIZE(pDesc->Bank0.PCKSIZE.bit.SIZE) | 
+		pDesc->Bank0.PCKSIZE.reg = USB_HOST_PCKSIZE_SIZE(pDesc->Bank0.PCKSIZE.bit.SIZE) |
 			USB_HOST_PCKSIZE_BYTE_COUNT(cb) | zlp;
 
 		// Set BK0RDY to indicate bank is full and ready to send
@@ -310,11 +310,11 @@ public:
 		PipeDescriptor	*pDesc;
 		UsbHostPipe		*pPipe;
 
-		pDesc = &PipeDesc[iPipe];
+		pDesc = &s_arPipeDesc[iPipe];
 		pPipe = &USB->HOST.HostPipe[iPipe];
 
 		pDesc->Bank0.ADDR.reg = (ulong)pv;
-		pDesc->Bank0.PCKSIZE.reg = USB_HOST_PCKSIZE_SIZE(pDesc->Bank0.PCKSIZE.bit.SIZE) | 
+		pDesc->Bank0.PCKSIZE.reg = USB_HOST_PCKSIZE_SIZE(pDesc->Bank0.PCKSIZE.bit.SIZE) |
 			USB_HOST_PCKSIZE_MULTI_PACKET_SIZE(cb);
 
 		// Clear BK0RDY to indicate bank is empty and ready to receive
@@ -333,21 +333,21 @@ public:
 protected:
 	static void StartSetup(UsbHostDriver *pDriver, void *pv)
 	{
-		PipeDesc[0].Bank0.ADDR.reg = (uint32_t)&SetupBuffer;
-		PipeDesc[0].Bank0.PCKSIZE.reg =
-			USB_HOST_PCKSIZE_BYTE_COUNT(sizeof(SetupBuffer.packet)) | USB_HOST_PCKSIZE_SIZE(pDriver->m_PackSize);
-		PipeDesc[0].Bank0.CTRL_PIPE.reg = pDriver->m_bAddr;
-		PipeDesc[0].pDriver = pDriver;
-		pvSetupData = pv;
+		s_arPipeDesc[0].Bank0.ADDR.reg = (uint32_t)&s_SetupBuffer;
+		s_arPipeDesc[0].Bank0.PCKSIZE.reg =
+			USB_HOST_PCKSIZE_BYTE_COUNT(sizeof(s_SetupBuffer.packet)) | USB_HOST_PCKSIZE_SIZE(pDriver->m_PackSize);
+		s_arPipeDesc[0].Bank0.CTRL_PIPE.reg = pDriver->m_bAddr;
+		s_arPipeDesc[0].pDriver = pDriver;
+		s_pvSetupData = pv;
 
-		if (SetupBuffer.packet.Dir == USBRT_DirIn_Val)
-			stSetup = SS_CtrlRead;
-		else if (SetupBuffer.packet.wLength == 0)
-			stSetup = SS_NoData;
+		if (s_SetupBuffer.packet.Dir == USBRT_DirIn_Val)
+			s_stSetup = SS_CtrlRead;
+		else if (s_SetupBuffer.packet.wLength == 0)
+			s_stSetup = SS_NoData;
 		else
-			stSetup = SS_CtrlWrite;
-			
-		USB->HOST.HostPipe[0].PCFG.reg = USB_HOST_PCFG_PTYPE_CONTROL | 
+			s_stSetup = SS_CtrlWrite;
+
+		USB->HOST.HostPipe[0].PCFG.reg = USB_HOST_PCFG_PTYPE_CONTROL |
 			USB_HOST_PCFG_PTOKEN_SETUP;
 		USB->HOST.HostPipe[0].PINTENSET.reg = USB_HOST_PINTFLAG_TXSTP |
 			USB_HOST_PINTFLAG_STALL | USB_HOST_PINTFLAG_PERR;
@@ -362,28 +362,28 @@ protected:
 		UsbHostDriver	*pDriver;
 		ControlPacket	pkt;
 
-		pDriver = DeviceDrivers.EnumDriver;
+		pDriver = s_DeviceDrivers.EnumDriver;
 
-		switch (stEnum)
+		switch (s_stEnum)
 		{
 		case ES_Connected:
-			if (!tmrEnum.CheckDelay_ms(DelayConnectToResetMs))
+			if (!s_tmrEnum.CheckDelay_ms(DelayConnectToResetMs))
 				return;
 
 			// Device is connected, reset it
 			USB->HOST.CTRLB.reg	 = USB_HOST_CTRLB_VBUSOK | USB_HOST_CTRLB_BUSRESET;
-			stEnum = ES_Idle;
+			s_stEnum = ES_Idle;
 			break;
 
 		case ES_ResetComplete:
-			if (!tmrEnum.CheckDelay_ms(DelayResetToGetDescriptorMs))
+			if (!s_tmrEnum.CheckDelay_ms(DelayResetToGetDescriptorMs))
 				return;
 
 			// Initialize Pipe 0 for control
 			pDriver->m_bAddr = 0;	// default address
 			pDriver->m_PackSize = USB_HOST_PCKSIZE_SIZE_8_Val;
 			// Get 8 bytes of the device descriptor
-			GetDescriptor(pDriver, &SetupBuffer, USBVAL_Type(USBDESC_Device), 8);
+			GetDescriptor(pDriver, &s_SetupBuffer, USBVAL_Type(USBDESC_Device), 8);
 			break;
 
 		case ES_SetAddress:
@@ -396,11 +396,11 @@ protected:
 			break;
 
 		case ES_DevDesc:
-			GetDescriptor(pDriver, &SetupBuffer, USBVAL_Type(USBDESC_Device), sizeof(UsbDeviceDesc));
+			GetDescriptor(pDriver, &s_SetupBuffer, USBVAL_Type(USBDESC_Device), sizeof(UsbDeviceDesc));
 			break;
 
 		case ES_ConfigDesc:
-			GetDescriptor(pDriver, &SetupBuffer, USBVAL_Type(USBDESC_Config), sizeof SetupBuffer - 1);
+			GetDescriptor(pDriver, &s_SetupBuffer, USBVAL_Type(USBDESC_Config), sizeof s_SetupBuffer - 1);
 			break;
 		}
 	}
@@ -413,55 +413,55 @@ protected:
 		int		cb;
 		UsbHostDriver *pDriver;
 
-		pDriver = DeviceDrivers.EnumDriver;
+		pDriver = s_DeviceDrivers.EnumDriver;
 
-		switch (stEnum)
+		switch (s_stEnum)
 		{
 		case ES_ResetComplete:
 			if (cbTransfer > offsetof(UsbDeviceDesc, bMaxPacketSize0))
 			{
-				cb = SetupBuffer.descDev.bMaxPacketSize0;
+				cb = s_SetupBuffer.descDev.bMaxPacketSize0;
 				// Make sure it's a power of two
 				if ((cb & (cb - 1)) != 0 || cb < 8 || cb > 64)
 					cb = 8;	// just use smallest packet size
 				pDriver->m_PackSize = GetPacketSize(cb);
-				stEnum = ES_SetAddress;
+				s_stEnum = ES_SetAddress;
 			}
 			break;
 
 		case ES_SetAddress:
-			pDriver->m_bAddr = SetupBuffer.packet.wValue;	// Set the address
-			stEnum = ES_DevDesc;
+			pDriver->m_bAddr = s_SetupBuffer.packet.wValue;	// Set the address
+			s_stEnum = ES_DevDesc;
 			break;
 
 		case ES_DevDesc:
-			devVidPid = (SetupBuffer.descDev.idProduct << 16) | SetupBuffer.descDev.idVendor;
-			devClass = (SetupBuffer.descDev.bDeviceProtocol << 16) | 
-				(SetupBuffer.descDev.bDeviceSubclass << 8) | SetupBuffer.descDev.bDeviceClass;
-			stEnum = ES_ConfigDesc;
+			s_devVidPid = (s_SetupBuffer.descDev.idProduct << 16) | s_SetupBuffer.descDev.idVendor;
+			s_devClass = (s_SetupBuffer.descDev.bDeviceProtocol << 16) |
+				(s_SetupBuffer.descDev.bDeviceSubclass << 8) | s_SetupBuffer.descDev.bDeviceClass;
+			s_stEnum = ES_ConfigDesc;
 			break;
 
 		case ES_ConfigDesc:
-			stEnum = ES_Idle;
+			s_stEnum = ES_Idle;
 
 			for (int i = 0; i < HOST_DRIVER_COUNT; i++)
 			{
 				UsbHostDriver	*pDriver;
 
-				pDriver = DeviceDrivers.arHostDriver[i]->IsDriverForDevice(devVidPid, devClass, &SetupBuffer.descConfig);
+				pDriver = s_DeviceDrivers.arHostDriver[i]->IsDriverForDevice(s_devVidPid, s_devClass, &s_SetupBuffer.descConfig);
 
 				if (pDriver != NULL)
 				{
-					pActiveDriver = pDriver;
-					pDriver->m_bAddr = DeviceDrivers.EnumDriver->m_bAddr;
-					pDriver->m_PackSize = DeviceDrivers.EnumDriver->m_PackSize;
+					s_pActiveDriver = pDriver;
+					pDriver->m_bAddr = s_DeviceDrivers.EnumDriver->m_bAddr;
+					pDriver->m_PackSize = s_DeviceDrivers.EnumDriver->m_PackSize;
 					pDriver->m_fDriverLoaded = true;
-					actHost = HOSTACT_AddDevice;
+					s_actHost = HOSTACT_AddDevice;
 					return;
 				}
 			}
-			DeviceDrivers.EnumDriver->TransferError(0, TEC_NoDriver);
-			actHost = HOSTACT_AddFailed;
+			s_DeviceDrivers.EnumDriver->TransferError(0, TEC_NoDriver);
+			s_actHost = HOSTACT_AddFailed;
 			break;
 		}
 	}
@@ -489,15 +489,15 @@ protected:
 			FreePipe(i);
 
 		// Free the driver
-		if (pActiveDriver != NULL)
+		if (s_pActiveDriver != NULL)
 		{
-			pActiveDriver->m_fDriverLoaded = false;
-			pActiveDriver = NULL;
-			actHost = HOSTACT_RemoveDevice;
+			s_pActiveDriver->m_fDriverLoaded = false;
+			s_pActiveDriver = NULL;
+			s_actHost = HOSTACT_RemoveDevice;
 		}
 		// Device is disconnected
-		stEnum = ES_Idle;
-		stSetup = SS_Idle;
+		s_stEnum = ES_Idle;
+		s_stSetup = SS_Idle;
 	}
 
 	//*********************************************************************
@@ -524,8 +524,8 @@ public:
 			// Clear the interrupt flag
 			USB->HOST.INTFLAG.reg = USB_HOST_INTFLAG_RST;
 
-			stEnum = ES_ResetComplete;
-			tmrEnum.Start();
+			s_stEnum = ES_ResetComplete;
+			s_tmrEnum.Start();
 		}
 
 		if (intFlags & USB_HOST_INTFLAG_DCONN)
@@ -533,8 +533,8 @@ public:
 			// Clear the interrupt flag
 			USB->HOST.INTFLAG.reg = USB_HOST_INTFLAG_DCONN;
 
-			stEnum = ES_Connected;
-			tmrEnum.Start();
+			s_stEnum = ES_Connected;
+			s_tmrEnum.Start();
 		}
 
 		if (intFlags & USB_HOST_INTFLAG_DDISC)
@@ -558,12 +558,12 @@ public:
 				continue;
 
 			pPipe = &USB->HOST.HostPipe[iPipe];
-			pDesc = &PipeDesc[iPipe];
+			pDesc = &s_arPipeDesc[iPipe];
 			pDriver = pDesc->pDriver;
 			intFlags = pPipe->PINTFLAG.reg;
 			intEnFlags = pPipe->PINTENSET.reg;
 
-			PipeDesc[0].Bank0.ADDR.reg = (uint32_t)&SetupBuffer;
+			s_arPipeDesc[0].Bank0.ADDR.reg = (uint32_t)&s_SetupBuffer;
 
 			if (iPipe == 0)
 			{
@@ -574,39 +574,39 @@ public:
 				{
 					// Clear the interrupt flag
 					pPipe->PINTFLAG.reg = USB_HOST_PINTFLAG_TXSTP;
-					pDesc->Bank0.ADDR.reg = (ulong)pvSetupData;
-					cb = SetupBuffer.packet.wLength;
+					pDesc->Bank0.ADDR.reg = (ulong)s_pvSetupData;
+					cb = s_SetupBuffer.packet.wLength;
 
-					switch (stSetup)
+					switch (s_stSetup)
 					{
 					case SS_NoData:
-						cbTransfer = 0;
+						s_cbTransfer = 0;
 						goto GetStatus;
 
 					case SS_CtrlRead:
-						pPipe->PCFG.reg = USB_HOST_PCFG_PTYPE_CONTROL | 
+						pPipe->PCFG.reg = USB_HOST_PCFG_PTYPE_CONTROL |
 							USB_HOST_PCFG_PTOKEN_IN;
-						pDesc->Bank0.PCKSIZE.reg = 
-							USB_DEVICE_PCKSIZE_MULTI_PACKET_SIZE(cb) | 
+						pDesc->Bank0.PCKSIZE.reg =
+							USB_DEVICE_PCKSIZE_MULTI_PACKET_SIZE(cb) |
 							USB_DEVICE_PCKSIZE_SIZE(pDriver->m_PackSize);
 						// BK0RDY is zero, indicating bank is empty and ready to receive
-						stSetup = SS_SendStatus;
+						s_stSetup = SS_SendStatus;
 						break;
 
 					case SS_CtrlWrite:
-						pPipe->PCFG.reg = USB_HOST_PCFG_PTYPE_CONTROL | 
+						pPipe->PCFG.reg = USB_HOST_PCFG_PTYPE_CONTROL |
 							USB_HOST_PCFG_PTOKEN_OUT;
-						pDesc->Bank0.PCKSIZE.reg = 
-							USB_DEVICE_PCKSIZE_BYTE_COUNT(cb) | 
+						pDesc->Bank0.PCKSIZE.reg =
+							USB_DEVICE_PCKSIZE_BYTE_COUNT(cb) |
 							USB_DEVICE_PCKSIZE_SIZE(pDriver->m_PackSize) |
 							USB_DEVICE_PCKSIZE_AUTO_ZLP;
 						// Set BK0RDY to indicate bank is full and ready to send
 						pPipe->PSTATUSSET.reg = USB_HOST_PSTATUSSET_BK0RDY;
-						stSetup = SS_GetStatus;
+						s_stSetup = SS_GetStatus;
 						break;
 					};
-						
-					pPipe->PINTENSET.reg = USB_HOST_PINTFLAG_TRCPT0 | 
+
+					pPipe->PINTENSET.reg = USB_HOST_PINTFLAG_TRCPT0 |
 						USB_HOST_PINTFLAG_STALL | USB_HOST_PINTFLAG_PERR;
 					pPipe->PSTATUSCLR.reg = USB_HOST_PSTATUSCLR_PFREEZE;
 				}
@@ -616,15 +616,15 @@ public:
 					// Clear the interrupt flag
 					pPipe->PINTFLAG.reg = USB_HOST_PINTFLAG_TRCPT0;
 
-					switch (stSetup)
+					switch (s_stSetup)
 					{
 					case SS_GetStatus:
-						cbTransfer = pDesc->Bank0.PCKSIZE.bit.MULTI_PACKET_SIZE;
+						s_cbTransfer = pDesc->Bank0.PCKSIZE.bit.MULTI_PACKET_SIZE;
 GetStatus:
-						pPipe->PCFG.reg = USB_HOST_PCFG_PTYPE_CONTROL | 
+						pPipe->PCFG.reg = USB_HOST_PCFG_PTYPE_CONTROL |
 							USB_HOST_PCFG_PTOKEN_IN;
-						pDesc->Bank0.PCKSIZE.reg = 
-							USB_DEVICE_PCKSIZE_MULTI_PACKET_SIZE(0) | 
+						pDesc->Bank0.PCKSIZE.reg =
+							USB_DEVICE_PCKSIZE_MULTI_PACKET_SIZE(0) |
 							USB_DEVICE_PCKSIZE_SIZE(pDriver->m_PackSize);
 						// BK0RDY is zero, indicating bank is empty and ready to receive
 						// Data toggle is 1 for IN Setup
@@ -632,11 +632,11 @@ GetStatus:
 						break;
 
 					case SS_SendStatus:
-						cbTransfer = pDesc->Bank0.PCKSIZE.bit.BYTE_COUNT;
-						pPipe->PCFG.reg = USB_HOST_PCFG_PTYPE_CONTROL | 
+						s_cbTransfer = pDesc->Bank0.PCKSIZE.bit.BYTE_COUNT;
+						pPipe->PCFG.reg = USB_HOST_PCFG_PTYPE_CONTROL |
 							USB_HOST_PCFG_PTOKEN_OUT;
-						pDesc->Bank0.PCKSIZE.reg = 
-							USB_DEVICE_PCKSIZE_BYTE_COUNT(0) | 
+						pDesc->Bank0.PCKSIZE.reg =
+							USB_DEVICE_PCKSIZE_BYTE_COUNT(0) |
 							USB_DEVICE_PCKSIZE_SIZE(pDriver->m_PackSize) |
 							USB_DEVICE_PCKSIZE_AUTO_ZLP;
 						// Set BK0RDY to indicate bank is full and ready to send
@@ -645,14 +645,14 @@ GetStatus:
 						break;
 
 					case SS_WaitAck:
-						pDriver->SetupTransactionComplete(cbTransfer);
-						stSetup = SS_Idle;
+						pDriver->SetupTransactionComplete(s_cbTransfer);
+						s_stSetup = SS_Idle;
 						return;
 					}
-						
-					stSetup = SS_WaitAck;
+
+					s_stSetup = SS_WaitAck;
 					// Send or receive final ACK (or error)
-					pPipe->PINTENSET.reg = USB_HOST_PINTFLAG_TRCPT0 | 
+					pPipe->PINTENSET.reg = USB_HOST_PINTFLAG_TRCPT0 |
 						USB_HOST_PINTFLAG_STALL | USB_HOST_PINTFLAG_PERR;
 					pPipe->PSTATUSCLR.reg = USB_HOST_PSTATUSCLR_PFREEZE;
 				}
@@ -664,7 +664,7 @@ GetStatus:
 					DEBUG_PRINT("Control STALL received\n");
 
 					pDriver->TransferError(iPipe, TEC_Stall);
-					stSetup = SS_Idle;
+					s_stSetup = SS_Idle;
 				}
 
 				if (intFlags & USB_HOST_PINTFLAG_PERR)
@@ -684,30 +684,30 @@ GetStatus:
 					}
 					pDriver->TransferError(iPipe, TEC_Error);
 
-					if (stEnum == ES_ResetComplete)
+					if (s_stEnum == ES_ResetComplete)
 					{
 						// Try reset again
-						stEnum = ES_Connected;
-						tmrEnum.Start();
+						s_stEnum = ES_Connected;
+						s_tmrEnum.Start();
 					}
-					stSetup = SS_Idle;
+					s_stSetup = SS_Idle;
 				}
 			}
 			else
 			{
 				// Not the control pipe
-				if ((intFlags & USB_HOST_PINTFLAG_TRCPT0) && 
+				if ((intFlags & USB_HOST_PINTFLAG_TRCPT0) &&
 					(intEnFlags && USB_HOST_PINTFLAG_TRCPT0))
 				{
 					// Clear the interrupt flag
 					pPipe->PINTFLAG.reg = USB_HOST_PINTFLAG_TRCPT0;
 
 					if (pPipe->PCFG.bit.PTOKEN == USB_HOST_PCFG_PTOKEN_OUT_Val)
-						cbTransfer = pDesc->Bank0.PCKSIZE.bit.MULTI_PACKET_SIZE;
+						s_cbTransfer = pDesc->Bank0.PCKSIZE.bit.MULTI_PACKET_SIZE;
 					else
-						cbTransfer = pDesc->Bank0.PCKSIZE.bit.BYTE_COUNT;
+						s_cbTransfer = pDesc->Bank0.PCKSIZE.bit.BYTE_COUNT;
 
-					pDriver->TransferComplete(iPipe, cbTransfer);
+					pDriver->TransferComplete(iPipe, s_cbTransfer);
 				}
 
 				if (intFlags & USB_HOST_PINTFLAG_STALL)
@@ -745,24 +745,24 @@ GetStatus:
 
 	// Note this is NOT inline. It is defined in a code file using
 	// the USB_DRIVER_LIST() macro.
-	static const DeviceDrivers_t DeviceDrivers;
+	static const DeviceDrivers_t s_DeviceDrivers;
 
 	//*********************************************************************
 	// static (RAM) data
 	//*********************************************************************
 
 protected:
-	inline static SetupBuffer_t SetupBuffer;
-	inline static PipeDescriptor PipeDesc[HOST_PIPE_COUNT];
-	inline static UsbHostDriver *pActiveDriver;
-	inline static void *pvSetupData;
-	inline static ulong devVidPid;
-	inline static ulong devClass;
-	inline static int cbTransfer;
-	inline static Timer tmrEnum;
-	inline static byte stEnum;
-	inline static byte stSetup;
-	inline static byte actHost;		// HostAction enumeration
+	inline static SetupBuffer_t s_SetupBuffer;
+	inline static PipeDescriptor s_arPipeDesc[HOST_PIPE_COUNT];
+	inline static UsbHostDriver *s_pActiveDriver;
+	inline static void *s_pvSetupData;
+	inline static ulong s_devVidPid;
+	inline static ulong s_devClass;
+	inline static int s_cbTransfer;
+	inline static Timer s_tmrEnum;
+	inline static byte s_stEnum;
+	inline static byte s_stSetup;
+	inline static byte s_actHost;		// HostAction enumeration
 
 	//*********************************************************************
 	// Allow enumeration driver to access stuff
@@ -778,8 +778,8 @@ protected:
 class EnumerationDriver : public UsbHostDriver
 {
 	virtual UsbHostDriver *IsDriverForDevice(ulong ulVidPid, ulong ulClass, UsbConfigDesc *pConfig)
-	{ 
-		return NULL; 
+	{
+		return NULL;
 	}
 
 	virtual void SetupTransactionComplete(int cbTransfer)

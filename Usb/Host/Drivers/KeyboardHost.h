@@ -8,6 +8,7 @@
 #pragma once
 
 #include <Usb/Host/UsbHostDriver.h>
+#include <Usb/Host/Drivers/KeyboardDef.h>
 
 
 class KeyboardHost : public UsbHostDriver
@@ -15,55 +16,6 @@ class KeyboardHost : public UsbHostDriver
 	//*********************************************************************
 	// Types
 	//*********************************************************************
-
-public:
-	// These bits correspond to the indicator lights
-	enum KeyLocks
-	{
-		KL_NumLock = 0x01,
-		KL_CapsLock = 0x02,
-		KL_ScrollLock = 0x04,
-	};
-
-	enum ControlKeys
-	{
-		NoKey = 0xFF,
-		CD32 = 0,
-		CR = 0x0D,
-		ESC = 0x1B,
-		BS = 0x08,
-		TAB = 0x09,
-		// Function keys are consecutive
-		F1 = 0x81,
-		F2,
-		F3,
-		F4,
-		F5,
-		F6,
-		F7,
-		F8,
-		F9,
-		F10,
-		F11,
-		F12,
-		PrtSc = 0xA0,
-		Pause,
-		Ins,
-		Home,
-		PgUp,
-		Del,
-		End,
-		PgDn,
-		Up,
-		Dn,
-		Lf,
-		Rt,
-
-		LockPrefix = 0xF0,
-		CapsLk = LockPrefix | KL_CapsLock,
-		ScrLk = LockPrefix | KL_ScrollLock,
-		NumLk = LockPrefix | KL_NumLock,
-	};
 
 protected:
 	static constexpr int FirstKbKeycode = 4;	// 'a' is keycode 4
@@ -79,23 +31,6 @@ protected:
 		DS_Poll,
 		DS_HaveKey,
 		DS_SetIndicators,
-	};
-
-	enum KeyModifiers
-	{
-		KM_Lctl = 0x01,
-		KM_Lshift = 0x02,
-		KM_Lalt = 0x04,
-		KM_Lgui = 0x08,
-		KM_Rctl = 0x10,
-		KM_Rshift = 0x20,
-		KM_Ralt = 0x40,
-		KM_Rgui = 0x80,
-
-		KM_Ctl = KM_Lctl | KM_Rctl,
-		KM_Shift = KM_Lshift | KM_Rshift,
-		KM_Alt = KM_Lalt | KM_Ralt,
-		KM_Gui = KM_Lgui | KM_Rgui,
 	};
 
 	struct UsbKeyBuffer
@@ -117,12 +52,20 @@ protected:
 	//*********************************************************************
 
 public:
-	byte GetKey()
+	// This includes:
+	//	bits 0 - 7 = key
+	//	bits 8 - 15 = source, keyboard vs. keypad
+	//	bits 16 - 24 = key modifiers (shift, ctrl, etc.)
+	//
+	ulong GetKey()
 	{
-		byte bKey = m_bKeyReady;
-		m_bKeyReady = NoKey;
-		return bKey;
+		ulong key = m_keyReady;
+		m_keyReady = NoKey;
+		return key;
 	}
+
+	// Strip to basic key code
+	byte GetKeyByte()	{ return (byte)GetKey(); }
 
 	//*********************************************************************
 	// Override of virtual functions
@@ -163,7 +106,7 @@ public:
 						return NULL;
 					m_bInPipe = iPipe;
 					m_stDev = DS_SetConfig;
-					m_bKeyReady = NoKey;
+					m_keyReady = NoKey;
 					m_bKeyLocks = 0;	// CONSIDER: user-settable default?
 					DEBUG_PRINT("Keyboard driver loaded\n");
 					return this;
@@ -205,7 +148,7 @@ public:
 
 	virtual int Process()
 	{
-		byte	bKey;
+		ulong	key;
 		USBhost::ControlPacket	pkt;
 
 		switch (m_stDev)
@@ -235,12 +178,12 @@ public:
 			break;
 
 		case DS_HaveKey:
-			bKey = MapKey(m_bufUsbKey.Keys[0], m_bufUsbKey.bModifiers);
-			if (bKey == LockPrefix)
+			key = MapKey(m_bufUsbKey.Keys[0], m_bufUsbKey.bModifiers);
+			if (key == LockPrefix)
 				m_stDev = DS_SetIndicators;
 			else
 			{
-				m_bKeyReady = bKey;
+				m_keyReady = key | ((ulong)m_bufUsbKey.bModifiers << 16);
 				m_stDev = DS_Poll;
 			}
 			break;
@@ -272,7 +215,7 @@ protected:
 		return false;
 	}
 
-	byte MapKey(uint uCode, uint uMod)
+	uint MapKey(uint uCode, uint uMod)
 	{
 		if (uCode < FirstKbKeycode)
 			return NoKey;
@@ -284,12 +227,12 @@ protected:
 		{
 			uCode -= _countof(mapKbKeycode) + ('z' - 'a') + 1;
 			if (uCode >= _countof(mapKpNumLockKeycode))
-				uCode = NoKey;
+				return NoKey;
 			else if (m_bKeyLocks & KL_NumLock)
 				uCode = mapKpNumLockKeycode[uCode];
 			else
 				uCode = mapKpEditKeycode[uCode];
-			return uCode;
+			return uCode | KS_Keypad;
 		}
 
 		// First block of codes are the letters 'a' - 'z'
@@ -391,10 +334,10 @@ protected:
 	UsbKeyBuffer ALIGNED_ATTR(int)	m_bufUsbKey;
 	UsbOutBuffer ALIGNED_ATTR(int)	m_bufUsbOut;
 
+	ulong	m_keyReady;
 	bool	m_fPollStart;
 	byte	m_stDev;
 	byte	m_bConfig;
 	byte	m_bInPipe;
 	byte	m_bKeyLocks;
-	byte	m_bKeyReady;
 };

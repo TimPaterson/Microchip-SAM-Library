@@ -322,7 +322,7 @@ protected:
 		int		err;
 
 		if (!T::SdCardPresent())
-			return STERR_NoMedia;
+			return STERR_NoMedium;
 
 		T::SetClockSlow();
 
@@ -336,7 +336,7 @@ protected:
 
 		bTmp = SendCommand(SDCARD_GO_IDLE_STATE);
 		if (bTmp != SDCARD_R1_IDLE)
-			ErrGoDeselect(STERR_NoMedia);
+			ErrGoDeselect(STERR_NoMedium);
 
 		// See if v.2 card
 		bTmp = SendCommand(SDCARD_SEND_IF_COND, SDCARD_IF_COND_VHS_ARG);

@@ -357,7 +357,7 @@ public:
 		else
 			pf->SearchNext();
 
-		return FATERR_None;
+		return hFile;
 	}
 
 	//****************************************************************************

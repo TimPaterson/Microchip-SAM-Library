@@ -46,7 +46,7 @@
 //
 // TimerClockFreq	- clock rate of the timer
 // GetTickCount		- function returning Timer_t of tick count
-// CpuFreq			- CPU frequency, defaults to F_CPU
+// CpuFreq			- CPU frequency, defaults to F_CPU (for asm loops)
 
 template <ulong TimerClockFreq, Timer_t (*GetTickCount)(), ulong CpuFreq
 #ifdef F_CPU
@@ -55,6 +55,17 @@ template <ulong TimerClockFreq, Timer_t (*GetTickCount)(), ulong CpuFreq
  >
 class Define_Timer
 {
+public:
+	// Assuming Timer_t is uint16_t, this converts ticks back to time
+	static constexpr double SecondsPerTick = 1.0 / TimerClockFreq;
+	static constexpr double MicrosecPerTick = SecondsPerTick * 1E6;
+	static constexpr double MaxDelaySeconds = 65535.0 * SecondsPerTick;
+	static constexpr int TickShift = 31 - __CLZ(65535 / MicrosecPerTick);
+	static constexpr uint TickScale = 1 << TickShift;
+	static constexpr uint MicrosecPerTickScale = lround(MicrosecPerTick * TickScale);
+
+protected:
+	// For assembly-language delay loops
 	static constexpr uint ClocksPerLoop = 3;
 	static constexpr uint LoopBaseClocks = 3;
 
@@ -101,6 +112,9 @@ public:
 	INLINE_ATTR bool CheckInterval_us(double us)	{ return CheckInterval_ticks(TicksFromUs(us)); }
 	INLINE_ATTR bool CheckInterval_ms(double ms)	{ return CheckInterval_ticks(TicksFromMs(ms)); }
 	INLINE_ATTR bool CheckInterval_rate(double f)	{ return CheckInterval_ticks(TicksFromFreq(f)); }
+
+	INLINE_ATTR uint GetInterval_us()				{ return UsFromTicks(GetIntervalTicks()); }
+	INLINE_ATTR uint GetIntervalReset_us()			{ return UsFromTicks(GetIntervalTicksReset()); }
 		
 	// These are for action triggered by a missing event, like
 	// a watchdog timer. fForceRestart signals event occurred.
@@ -130,7 +144,7 @@ public:
 			
 public:
 	// All of the above are now duplicated with the timer count passed in.
-	// Thise helps when the timer count was also needed in the caller.
+	// This helps when the timer count was also needed in the caller.
 		
 	INLINE_ATTR bool CheckDelay(double sec, Timer_t time)		{ return CheckDelay_ticks(TicksFromSec(sec), time); }
 	INLINE_ATTR bool CheckDelay_us(double us, Timer_t time)		{ return CheckDelay_ticks(TicksFromUs(us), time); }
@@ -167,6 +181,9 @@ public:
 		{ return CheckInterval_ticks(TicksFromMs(ms), fForceRestart, time); }
 	INLINE_ATTR bool CheckInterval_rate(double f, bool fForceRestart, Timer_t time)
 		{ return CheckInterval_ticks(TicksFromFreq(f), fForceRestart, time); }
+
+	INLINE_ATTR uint GetInterval_us(Timer_t time)		{ return UsFromTicks(GetIntervalTicks(time)); }
+	INLINE_ATTR uint GetIntervalReset_us(Timer_t time)	{ return UsFromTicks(GetIntervalTicksReset(time)); }
 			
 public:
 	// Calculate tick count from interval or rate
@@ -234,6 +251,25 @@ public:
 	INLINE_ATTR Timer_t GetIntervalTicks(Timer_t time)
 	{
 		return (Timer_t)(time - m_uLastTime);
+	}
+
+	INLINE_ATTR Timer_t GetIntervalTicksReset()
+	{
+		return GetIntervalTicks(GetTickCount());
+	}
+
+	INLINE_ATTR Timer_t GetIntervalTicksReset(Timer_t time)
+	{
+		Timer_t		res;
+
+		res = (Timer_t)(time - m_uLastTime);
+		m_uLastTime = time;
+		return res;
+	}
+
+	INLINE_ATTR uint UsFromTicks(Timer_t time)
+	{
+		return ShiftUintRnd((uint)time * MicrosecPerTickScale, TickShift);
 	}
 
 public:

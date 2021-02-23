@@ -7,7 +7,7 @@ enum STORAGE_ERROR
 {
 	STERR_None,
 	NEG_ENUM(STERR_Busy),			// -1
-	NEG_ENUM(STERR_NoMedia),		// -2
+	NEG_ENUM(STERR_NoMedium),		// -2
 	NEG_ENUM(STERR_NotMounted),		// -3
 	NEG_ENUM(STERR_BadBlock),		// -4
 	NEG_ENUM(STERR_WriteProtect),	// -5

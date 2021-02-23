@@ -51,7 +51,6 @@ union FileFlags
 {
 	struct
 	{
-		byte	Drive:1;
 		byte	OpenType:2;
 		byte	fNextClus:1;	// Current position is first byte of next cluster
 		byte	fIsAll:1;
@@ -96,13 +95,14 @@ public:
 		m_Length = m_CurClus.ul;
 		m_SavedDirEnt = m_DirEnt;
 		m_SavedDirSecInClus = m_DirSecInClus;
-		m_DirSec = FatBuffer::CurBufDesc()->block;
+		m_DirSec = FatBuffer::CurBufDesc()->GetBlock();
 	}
 
 	void DupFolder(FatFile *pf)
 	{
 		pf->m_flags = m_flags;
 		pf->m_FirstClus = m_FirstClus;
+		pf->m_Drive = m_Drive;
 	}
 
 	void CopySearchLoc(FatFile *pf)

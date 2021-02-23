@@ -234,6 +234,17 @@ protected:
 		UsbSendData(&bufCommand, sizeof bufCommand.Cmd);
 	}
 
+	int MapScsiError(uint Asc)
+	{
+		switch (Asc)
+		{
+		case 0x3A:
+			return STERR_NoMedium;
+		}
+
+		return STERR_DevFail;
+	}
+
 	//*********************************************************************
 	// Override of USBhost virtual functions
 	//*********************************************************************
@@ -363,14 +374,7 @@ protected:
 					else
 						DEBUG_PRINT("Invalid sense response\n");
 
-					if (m_stDrive == DS_WaitReady)
-					{
-						m_stDrive = DS_TestReady;	// keep trying
-						m_tmr.Start();
-						break;
-					}
-					// UNDONE: report command failed
-					m_errCode = STERR_DevFail;
+					m_errCode = MapScsiError(bufCommand.Sense.bAdditionalSenseCode);
 					m_stDrive = DS_Error;
 					break;
 

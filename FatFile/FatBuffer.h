@@ -15,20 +15,31 @@
 #define FAT_SECT_BUF_CNT	4
 #endif
 
-struct FatBufDesc
-{
-	ulong	block;
-	bool	fIsDirty;
-	byte	drive;
-	byte	handle;	// file that owns this buffer when it has priority
-
-	void SetFlagsDirty(bool f = true)	{fIsDirty = f;}
-	byte IsPriority()			{return handle != 0;}
-	void ClearPriority()		{handle = 0;}
-	void SetPriority(byte h)	{handle = h;}
-};
-
 static constexpr ulong INVALID_BUFFER = 0xFFFFFFFF;
+
+class FatBuffer;
+
+class FatBufDesc
+{
+public:
+	void InvalidateBuf()		{ m_block = INVALID_BUFFER; }
+	void SetBlock(ulong block, byte drive)	{ m_block = block; m_drive = drive; }
+	ulong GetBlock()			{ return m_block; }
+	byte GetDrive()				{ return m_drive; }
+	bool IsDirty()				{ return m_fIsDirty; }
+	void SetFlagsDirty(bool f = true)	{m_fIsDirty = f;}
+	bool IsPriority()			{return m_handle != 0;}
+	void ClearPriority()		{m_handle = 0;}
+	void SetPriority(byte h)	{m_handle = h;}
+
+protected:
+	ulong	m_block;
+	bool	m_fIsDirty;
+	byte	m_drive;
+	byte	m_handle;	// file that owns this buffer when it has priority
+
+	friend FatBuffer;
+};
 
 class FatBuffer
 {
@@ -50,15 +61,15 @@ public:
 	static void InvalidateAll()
 	{
 		for (int i = 0; i < FAT_SECT_BUF_CNT; i++)
-			s_desc[i].block = INVALID_BUFFER;
+			s_desc[i].m_block = INVALID_BUFFER;
 	}
 
 	static void InvalidateAll(uint drive)
 	{
 		for (int i = 0; i < FAT_SECT_BUF_CNT; i++)
 		{
-			if (s_desc[i].drive == drive)
-				s_desc[i].block = INVALID_BUFFER;
+			if (s_desc[i].m_drive == drive)
+				s_desc[i].m_block = INVALID_BUFFER;
 		}
 	}
 
@@ -66,7 +77,7 @@ public:
 	{
 		for (int i = 0; i < FAT_SECT_BUF_CNT; i++)
 		{
-			if (s_desc[i].handle == handle)
+			if (s_desc[i].m_handle == handle)
 				s_desc[i].ClearPriority();
 		}
 	}
@@ -79,7 +90,7 @@ public:
 		for (buf = 0; buf < FAT_SECT_BUF_CNT; buf++)
 		{
 			pDesc = BufDescFromIndex(buf);
-			if (pDesc->block == dwBlock && pDesc->drive == drive)
+			if (pDesc->m_block == dwBlock && pDesc->m_drive == drive)
 			{
 				s_nextBuf = buf;
 				s_pDesc = pDesc;
@@ -89,25 +100,25 @@ public:
 		return NULL;
 	}
 
-	static uint GetFreeBuf()
+	static uint GetFreeBuf(byte drive)
 	{
-		uint		i;
+		int			i;
 		uint		uCur;
 		FatBufDesc	*pDesc;
 
 		// Scan for a buffer that doesn't have priority. If all buffers
 		// have priority, the loop will scan around to one past current.
-		//
+		// Ignore dirty buffer on another drive.
 		uCur = s_nextBuf;
-		for (i = FAT_SECT_BUF_CNT + 1; i != 0; i--)
+		i = FAT_SECT_BUF_CNT;
+		do
 		{
 			uCur++;
+			i--;
 			if (uCur >= FAT_SECT_BUF_CNT)
 				uCur = 0;
 			pDesc = BufDescFromIndex(uCur);
-			if (!pDesc->IsPriority())
-				break;
-		}
+		} while ((pDesc->IsDirty() && pDesc->GetDrive() != drive) || (pDesc->IsPriority() && i >= 0));
 
 		s_nextBuf = uCur;
 		s_pDesc = pDesc;
@@ -124,6 +135,5 @@ protected:
 	inline static FatBufDesc	*s_pDesc;
 	inline static FatBufDesc	s_desc[FAT_SECT_BUF_CNT];
 	// Ensure buffers are aligned on 32-bit boundary
-	// Two-dimensional array declarations always seem ass-backwards to me:
-	inline static uint32_t		s_arSectBuf[FAT_SECT_BUF_CNT][FAT_SECT_SIZE / sizeof(uint32_t)];
+	inline static byte			s_arSectBuf[FAT_SECT_BUF_CNT][FAT_SECT_SIZE] ALIGNED_ATTR(uint32_t);
 };

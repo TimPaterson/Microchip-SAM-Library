@@ -74,15 +74,27 @@ enum FatOp
 struct FatOpState
 {
 	// Data for the current operation
-	struct
+	// 32-bit aligned
+	ulong		dwParentClus;	// Field needed for Rename/Move
+	union
 	{
-		ushort	op:8;
-		ushort	action:6;
-		ushort	fStartRead:1;
+		struct
+		{
+			char	*pchName;
+			byte	cchName;
+			byte	cchFolderName;
+			byte	bSecCnt;
+			byte	handle;
+		};
+		struct
+		{
+			byte	*pb;
+			ushort	cb;
+		};
+		ulong		dwSeekPos;
+		ulong		dwClusFree;
+		FatDateTime	DateTime;
 	};
-	byte	handle;
-	byte	cFree;
-	byte	CreateChecksum;
 	union
 	{
 		short	status;
@@ -94,26 +106,18 @@ struct FatOpState
 			byte	Checksum;	// for long filename dir entry
 		} info;
 	};
-	union
+
+	// 16-bit aligned
+	struct
 	{
-		struct
-		{
-			char	*pchName;
-			byte	cchName;
-			byte	cchFolderName;
-		};
-		struct
-		{
-			byte	*pb;
-			ushort	cb;
-		};
-		ulong		dwSeekPos;
-		ulong		dwClusFree;
-		FatDateTime	DateTime;
+		ushort	op:8;
+		ushort	action:6;
+		ushort	fStartRead:1;
 	};
-	byte		bSecCnt;
-	// Field needed for Rename/Move
-	ulong		dwParentClus;
+
+	// 8-bit aligned
+	byte	cFree;
+	byte	CreateChecksum;
 };
 
 
@@ -272,13 +276,13 @@ protected:
 		if (m_state.fStartRead)
 		{
 			m_state.fStartRead = 0;
-			err = ReadData(CurBufDesc()->block, CurBuf());
+			err = ReadData(CurBufBlock(), CurBuf());
 			if (IsErrorNotBusy(err))
 			{
 Invalidate:
 				m_state.fStartRead = 0;
 				m_state.action = FATACT_None;
-				CurBufDesc()->block = INVALID_BUFFER;
+				CurBufDesc()->InvalidateBuf();
 				goto Finished;
 			}
 			return;
@@ -373,7 +377,7 @@ Invalidate:
 				memset(CurBuf(), 0, FAT_SECT_SIZE); // First time through
 
 			pDesc = CurBufDesc();
-			pDesc->block = ulTmp;
+			pDesc->SetBlock(ulTmp, m_drive);
 			pDesc->SetFlagsDirty();
 			if (uTmp == 0)
 			{
@@ -507,7 +511,7 @@ Invalidate:
 					s_pvDataBuf = pbBuf;
 					m_state.cb = 0;
 					if (m_state.op == FATOP_Write)
-						CurBufDesc()->fIsDirty = true;
+						CurBufDesc()->SetFlagsDirty();
 					goto UpdateNoPtr;
 				}
 
@@ -515,7 +519,7 @@ Invalidate:
 					memcpy(pb, pbBuf, cb);
 				else
 				{
-					CurBufDesc()->fIsDirty = true;
+					CurBufDesc()->SetFlagsDirty();
 					memcpy(pbBuf, pb, cb);
 				}
 	UpdatePos:
@@ -622,7 +626,7 @@ Invalidate:
 						err = GetFreeBuf();
 						if (err != FATERR_Busy)
 							break;
-						CurBufDesc()->block = ulTmp;	// pretend its already in buffer
+						CurBufDesc()->SetBlock(ulTmp, m_drive);	// pretend its already in buffer
 						break;
 					}
 				}
@@ -638,9 +642,12 @@ Invalidate:
 			{
 				if (err != FATERR_Busy)
 					pf->Close();
-				break;
+				if (err != FATERR_FileNotFound)
+					break;
+				m_state.status = 0;	// signal end with zero-length name
 			}
-			m_state.status = m_state.handle;
+			else
+				m_state.status = m_state.cchFolderName;	// length of name
 			goto ReadFinished;
 
 		case FATOP_Seek:
@@ -653,7 +660,7 @@ Invalidate:
 			pf = GetHandleList();
 			for (uTmp = 0; uTmp < FAT_MAX_HANDLES; uTmp++)
 			{
-				if (pf->IsDirty())
+				if (pf->IsDirty() && pf->m_Drive == m_drive)
 				{
 					// Close this file, then repeat the search
 					m_state.handle = uTmp + 1;
@@ -691,16 +698,15 @@ Invalidate:
 		case FATOP_Flush:
 			// We start at the beginning each time, stopping at the first
 			// buffer that's dirty.
-			pDesc = CurBufDesc();
 			for (uTmp = 0; uTmp < FAT_SECT_BUF_CNT; uTmp++)
 			{
-				if (pDesc->fIsDirty)
+				pDesc= BufDescFromIndex(uTmp);
+				if (pDesc->IsDirty() && pDesc->GetDrive() == m_drive)
 				{
 					// Flush this buffer, then repeat the search
 					err = WriteBuf(uTmp);
 					goto StillDirty;
 				}
-				pDesc++;
 			}
 	StillDirty:
 			break;
@@ -856,7 +862,7 @@ Invalidate:
 		m_BPB.FatSize = pBoot->Bpb.FATSz16 == 0 ? pBoot->Bpb32.FATSz32 : pBoot->Bpb.FATSz16;
 		iSect += m_BPB.FatSize * m_BPB.NumFat;
 
-		m_BPB.FatStartSec = pBoot->Bpb.RsvdSecCnt + CurBufDesc()->block;
+		m_BPB.FatStartSec = pBoot->Bpb.RsvdSecCnt + CurBufBlock();
 		m_BPB.DataStartSec = m_BPB.FatStartSec + iSect;
 
 		// Compute maximum cluster number
@@ -893,7 +899,7 @@ Invalidate:
 		{
 	BadBpb:
 			// If we're not reading sector zero, this is our second try
-			if (CurBufDesc()->block != 0)
+			if (CurBufBlock() != 0)
 				return FATERR_CantMount;
 
 			// Maybe it was a partition table
@@ -919,6 +925,7 @@ Invalidate:
 	static byte *EndCurBuf()				{return FatBuffer::EndCurBuf();}
 	static bool AtEndBuf(void *pv)			{return FatBuffer::AtEndBuf(pv);}
 	static FatBufDesc *CurBufDesc()			{return FatBuffer::CurBufDesc(); }
+	static ulong CurBufBlock()				{ return CurBufDesc()->GetBlock(); }
 	static FatBufDesc *BufDescFromIndex(byte iBuf)	{return FatBuffer::BufDescFromIndex(iBuf);}
 
 	void InvalidateAll()
@@ -933,7 +940,7 @@ Invalidate:
 
 	int GetFreeBuf()
 	{
-		return WriteBuf(FatBuffer::GetFreeBuf());
+		return WriteBuf(FatBuffer::GetFreeBuf(m_drive));
 	}
 
 	//****************************************************************************
@@ -948,7 +955,7 @@ Invalidate:
 		err = GetFreeBuf();
 		if (err != FATERR_Busy)
 			return err;
-		CurBufDesc()->block = ulSect;
+		CurBufDesc()->SetBlock(ulSect, m_drive);
 		m_state.fStartRead = 1;
 		return FATERR_Busy;
 	}
@@ -961,9 +968,9 @@ Invalidate:
 		FatBufDesc *pDesc;
 
 		pDesc = BufDescFromIndex(buf);
-		if (pDesc->fIsDirty)
+		if (pDesc->IsDirty())
 		{
-			err = WriteData(pDesc->block, BufFromIndex(buf));
+			err = WriteData(pDesc->GetBlock(), BufFromIndex(buf));
 			if (IsErrorNotBusy(err))
 				return err;
 		}
@@ -1068,7 +1075,7 @@ Invalidate:
 		if (cFree == (byte)-1)
 		{
 			cFree = 1;
-			pf->m_DirSec = CurBufDesc()->block;
+			pf->m_DirSec = CurBufBlock();
 		}
 		else if (cFree > 0)
 		{
@@ -1185,11 +1192,12 @@ Invalidate:
 		if (pf->IsRoot() || dwTmp == Fat32DirStart())
 			dwTmp = 0;
 		m_state.dwParentClus = dwTmp;	// Save parent dir cluster
-		memset(pf, 0, sizeof *pf);	// UNDONE: drive flag zapped
+		memset(pf, 0, sizeof *pf);
 
 		// Set up non-zero fields of open file
+		pf->SetDrive(m_drive);
 		pf->m_DirEnt = bDirEnt;
-		pf->m_DirSec = CurBufDesc()->block;
+		pf->m_DirSec = CurBufBlock();
 		pf->m_flags.OpenType = OPENTYPE_Normal;
 		pf->m_flags.fNextClus = 1;
 		pf->m_flags.fIsAll = 1;
@@ -1230,7 +1238,7 @@ Invalidate:
 
 			if (pfParent->m_flags.fIsFolder)
 				pDir->Short.Attr = ATTR_DIRECTORY | ATTR_ARCHIVE;
-			CurBufDesc()->fIsDirty = true;
+			CurBufDesc()->SetFlagsDirty();
 
 			// Set up m_state to delete original file name
 			m_state.handle = hParent;
@@ -1390,7 +1398,7 @@ Invalidate:
 			}
 
 		} while (++cnt <= CLUS_COUNT_MAX && !clus.fLastSect && 
-			FatSectFromClus(dwLast) == CurBufDesc()->block);
+			FatSectFromClus(dwLast) == CurBufBlock());
 
 		// We finished counting consecutive clusters
 		if (cnt > 0)
@@ -2065,7 +2073,7 @@ Invalidate:
 				{
 					pf->m_CurPos = 0;
 	SetDirSec:
-					pf->m_DirSec = CurBufDesc()->block;
+					pf->m_DirSec = CurBufBlock();
 				}
 				pf->m_Length = pDir->Short.FileSize;
 
