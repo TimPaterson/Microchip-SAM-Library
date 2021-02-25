@@ -60,7 +60,7 @@ public:
 	static constexpr double SecondsPerTick = 1.0 / TimerClockFreq;
 	static constexpr double MicrosecPerTick = SecondsPerTick * 1E6;
 	static constexpr double MaxDelaySeconds = 65535.0 * SecondsPerTick;
-	static constexpr int TickShift = 31 - __CLZ(65535 / MicrosecPerTick);
+	static constexpr int TickShift = LOG2(65535 / MicrosecPerTick);
 	static constexpr uint TickScale = 1 << TickShift;
 	static constexpr uint MicrosecPerTickScale = lround(MicrosecPerTick * TickScale);
 

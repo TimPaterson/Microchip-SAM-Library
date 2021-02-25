@@ -11,8 +11,6 @@
 #define FAT_YEAR_BASE		1980
 #define FAT_MAX_YEAR		(FAT_YEAR_BASE + 127)
 
-// All structures are byte packed
-#pragma pack(push, 1)
 
 // Partition table entry
 struct FatPartitionEnt
@@ -30,6 +28,7 @@ struct FatPartitionEnt
 };
 
 // The common part of the BPB
+#pragma pack(push, 1)
 struct FatBpb
 {
 	ushort	BytsPerSec;
@@ -82,6 +81,7 @@ struct FatBootSect
 	};
 	FatBootSecTail	Tail32;
 };
+#pragma pack(pop)
 
 //****************************************************************************
 // Directory entry layout for short file names
@@ -134,6 +134,7 @@ struct FatShortDirEnt
 };
 
 // Directory entry layout for long file names
+#pragma pack(push, 1)
 struct FatLongDirEnt
 {
 	byte	Order;
@@ -145,6 +146,7 @@ struct FatLongDirEnt
 	ushort	FirstClusLo;	// Always zero
 	ushort	Name3[2];
 };
+#pragma pack(pop)
 
 union FatDirEnt
 {
@@ -183,5 +185,3 @@ union FatDirEnt
 
 #define FAT12_MAX_CLUS	4085
 #define FAT16_MAX_CLUS	65525
-
-#pragma pack(pop)

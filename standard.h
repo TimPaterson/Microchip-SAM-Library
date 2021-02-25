@@ -53,6 +53,7 @@ typedef wchar_t			WCHAR;
 #define STRINGIFY_(x)	#x
 #define STRINGIFY(x)	STRINGIFY_(x)
 
+inline int LOG2(uint32_t x)					{ return 31 - __builtin_clz(x); }
 inline bool CompSign(int s1, int s2)		{ return (s1 ^ s2) >= 0; }
 
 // Rounded integer division/shifting
