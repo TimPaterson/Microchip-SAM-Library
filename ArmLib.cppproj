@@ -171,8 +171,7 @@
   <ItemGroup>
     <Folder Include="FatFile\" />
     <Folder Include="FatFile\SdCard" />
-    <Folder Include="IoBuf\" />
-    <Folder Include="IoBuf\" />
+    <Folder Include="Com" />
     <Folder Include="Lib\" />
     <Folder Include="Math" />
     <Folder Include="Dma" />
@@ -184,13 +183,16 @@
     <Folder Include="Usb\Device\WinUsb\" />
     <Folder Include="Usb\Host\" />
     <Folder Include="Usb\Host\Drivers" />
-    <Folder Include="Util" />
+    <Folder Include="Timer" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Dma\Dmac.h">
+    <Compile Include="Com\DmaUsart.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="Dma\DmaUsart.h">
+    <Compile Include="Com\Spi.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Dma\Dmac.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="FatFile\Fat.h">
@@ -223,10 +225,10 @@
     <Compile Include="FatFile\Storage.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="IoBuf\IoBuf.h">
+    <Compile Include="Com\IoBuf.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="IoBuf\UsartBuf.h">
+    <Compile Include="Com\UsartBuf.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Math\DecimalToFrac.h">
@@ -245,6 +247,12 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="stdio.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Timer\InputCapture.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Timer\Rtc.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Usb\Device\FT232\FT232.h">
@@ -301,7 +309,7 @@
     <Compile Include="Usb\UsbMassStorage.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="Util\TimerLib.h">
+    <Compile Include="Timer\TimerLib.h">
       <SubType>compile</SubType>
     </Compile>
   </ItemGroup>

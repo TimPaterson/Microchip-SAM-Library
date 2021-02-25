@@ -263,7 +263,7 @@ public:
 		SendBytes();
 	}
 
-	BYTE IsXmitInProgress()
+	byte IsXmitInProgress()
 	{
 		DMAC->CHID.reg = m_bChanWrite;
 		return DMAC->CHCTRLA.reg & DMAC_CHCTRLA_ENABLE;

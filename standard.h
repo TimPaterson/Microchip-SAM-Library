@@ -23,9 +23,6 @@ typedef	int8_t			sbyte;
 typedef unsigned int	uint;
 typedef unsigned short	ushort;
 typedef unsigned long	ulong;
-typedef	uint8_t			BYTE;
-typedef	int8_t			SBYTE;
-typedef wchar_t			WCHAR;
 
 // Common macros
 #ifndef _countof
@@ -41,10 +38,8 @@ typedef wchar_t			WCHAR;
 #define RAMFUNC_ATTR	__attribute__ ((section(".ramfunc")))
 #define NAKED_ATTR		__attribute__ ((naked))
 #define VERSION_INFO	__attribute__ ((section(".version_info")))
-#define _BV(bit)		(1 << (bit))
 #define LOBYTE(w)       ((byte)(w))
 #define HIBYTE(w)       ((byte)((ushort)(w) >> 8))
-#define DIV_INT_ROUND(x, y)	(((x) + (y) / 2) / (y))	// deprecated name: doesn't work if < 0
 #define DIV_UINT_RND(x, y)	(((x) + (y) / 2) / (y))	// use this macro in constants
 #define CONCAT_(x,y)	x##y
 #define CONCAT(x,y)		CONCAT_(x,y)
@@ -82,8 +77,6 @@ inline void wdt_reset() {if (!WDT->STATUS.bit.SYNCBUSY) WDT->CLEAR.reg = WDT_CLE
 #else
 inline void wdt_reset() {if (!WDT->SYNCBUSY.bit.CLEAR) WDT->CLEAR.reg = WDT_CLEAR_CLEAR_KEY;}
 #endif
-static inline void cli()		{ __disable_irq(); }
-static inline void sei()		{ __enable_irq(); }
 
 typedef union
 {

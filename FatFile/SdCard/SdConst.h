@@ -1,7 +1,7 @@
 #pragma once
 
 #define SDCARD_BLOCK_POWER	9
-#define SDCARD_BLOCK_SIZE	_BV(SDCARD_BLOCK_POWER)
+#define SDCARD_BLOCK_SIZE	(1 << SDCARD_BLOCK_POWER)
 
 // SD card commands
 #define SDCARD_GO_IDLE_STATE		0

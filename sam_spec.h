@@ -33,10 +33,21 @@
 
 #endif
 
+
+#if		defined(__SAMC20__) || defined(__SAMC21__)
+
+#define __SAMC__
+
+#elif	defined(__SAMD10__) || defined(__SAMD11__) || defined(__SAMD20__) || defined(__SAMD21__)
+
+#define __SAMD__
+
+#endif
+
 //*********************************************************************
 // Define calibration row
 
-#if		defined(__SAMC20__) || defined(__SAMC21__)
+#if		defined(__SAMC__)
 
 struct NvmSofwareCal_t
 {
@@ -74,7 +85,7 @@ struct NvmUserRow_t
 
 #define NVM_USER_ROW	((NvmUserRow_t *)NVMCTRL_USER)
 
-#elif	defined(__SAMD10__) || defined(__SAMD11__) || defined(__SAMD20__) || defined(__SAMD21__)
+#elif	defined(__SAMD__)
 
 struct NvmSofwareCal_t
 {
