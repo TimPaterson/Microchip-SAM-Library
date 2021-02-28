@@ -20,6 +20,8 @@
 
 #define FAT_DRIVES_LIST(...) FatDrive *const FatSys::m_arDrives[FAT_NUM_DRIVES] = {__VA_ARGS__};
 
+static constexpr int FAT_NO_NAME_LEN = -1;
+
 class FatSys
 {
 	//*********************************************************************
@@ -111,7 +113,9 @@ public:
 
 	//****************************************************************************
 
-	static int StartOpen(const char *pchName, int hFolder = 0, uint flags = OPENFLAG_File | OPENFLAG_Folder, int cchName = 0) NO_INLINE_ATTR
+	static int StartOpen(const char *pchName, int hFolder = 0, 
+		uint flags = OPENFLAG_File | OPENFLAG_Folder, 
+		int cchName = FAT_NO_NAME_LEN)
 	{
 		FatFile		*pf;
 		FatDrive	*pDrive;
@@ -125,7 +129,7 @@ public:
 		if (IsError(hFile))
 			return hFile;
 
-		if (cchName == 0)
+		if (cchName == FAT_NO_NAME_LEN)
 			cchName = strlen(pchName);
 
 		// Check for drive specifier
