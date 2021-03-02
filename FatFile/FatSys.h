@@ -36,6 +36,8 @@ public:
 	static FatDateTime GetFatDate(uint handle)	
 		{return DriveToPointer(HandleToPointer(handle)->GetDrive())->m_state.DateTime;}
 	static byte *GetDataBuf()			{ return FatDrive::s_pvDataBuf; }
+	static bool IsDriveMounted(int drv)	{ return m_arDrives[drv]->IsMounted(); }
+	static void SetStatusNotify(FatDrive::StatusChange *pfn) { FatDrive::SetStatusNotify(pfn); }
 
 	//static byte SetDate(byte handle, ulong dwTime) {return SetFatDate(handle, ToFatTime(dwTime));}
 	/*

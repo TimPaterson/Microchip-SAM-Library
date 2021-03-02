@@ -129,7 +129,16 @@ class FatDrive : protected Storage
 
 	static constexpr int DirEntPerSect = FAT_SECT_SIZE / sizeof(FatDirEnt);
 
+	typedef void StatusChange(int drive, int status);
+
 public:
+	enum FatDriveState
+	{
+		FDS_Dismounted,
+		FDS_Mounted,
+	};
+
+protected:
 	enum FatAction
 	{
 		FATACT_None,
@@ -140,7 +149,6 @@ public:
 		FATACT_CloseFolder,
 	};
 
-protected:
 	// Data from BPB
 	struct FatLocalBpb
 	{
@@ -183,7 +191,8 @@ protected:
 
 public:
 	static byte *GetDataBuf()		{ return s_pvDataBuf; }
-	static void InvalidateHandles()	{memset(m_arHandles, 0, sizeof m_arHandles);}
+	static void InvalidateHandles()	{memset(s_arHandles, 0, sizeof s_arHandles);}
+	static void SetStatusNotify(StatusChange *pfn)	{ s_pfnStatusChange = pfn; }
 
 public:
 	uint Init(uint drive)
@@ -225,9 +234,14 @@ public:
 		return StartBuf(0);
 	}
 
-	bool IsMounted()	{return m_BPB.fFat16 || m_BPB.fFat32;}
+	void Dismount()		
+	{
+		m_BPB.bFlags = 0;
+		if (s_pfnStatusChange != NULL)
+			s_pfnStatusChange(m_drive, FDS_Dismounted);
+	}
 
-	void Dismount()		{m_BPB.bFlags = 0;}
+	bool IsMounted()	{return m_BPB.fFat16 || m_BPB.fFat32;}
 
 	//*********************************************************************
 	// Helpers
@@ -238,10 +252,10 @@ protected:
 	ulong Fat32DirStart()	{return m_BPB.RootClus;}
 
 protected:
-	static FatFile *GetHandleList()	{return &m_arHandles[0];}
+	static FatFile *GetHandleList()	{return &s_arHandles[0];}
 
 	static FatFile *HandleToPointer(int handle)
-		{ return &m_arHandles[handle - 1]; }
+		{ return &s_arHandles[handle - 1]; }
 
 	//*********************************************************************
 	// Main dispatcher
@@ -804,6 +818,8 @@ Invalidate:
 
 		case FATOP_Mount:
 			err = MountDrive();
+			if (err == FATERR_None && s_pfnStatusChange != NULL)
+				s_pfnStatusChange(m_drive, FDS_Mounted);
 			break;
 
 		case FATOP_GetDate:
@@ -870,7 +886,6 @@ Invalidate:
 		iSect = (pBoot->Bpb.TotSec16 != 0 ? pBoot->Bpb.TotSec16 : pBoot->Bpb.TotSec32) - iSect;
 		iClus = iSect >> m_BPB.SecPerClusShift;	// Number of clusters
 
-		m_BPB.bFlags = 0;
 		if (iClus < FAT16_MAX_CLUS)
 		{
 			if (iClus < FAT12_MAX_CLUS)
@@ -898,6 +913,8 @@ Invalidate:
 			pTail->FilSysType[2] != 'T')
 		{
 	BadBpb:
+			m_BPB.bFlags = 0;
+
 			// If we're not reading sector zero, this is our second try
 			if (CurBufBlock() != 0)
 				return FATERR_CantMount;
@@ -2445,8 +2462,9 @@ protected:
 	byte	m_drive;
 
 protected:
+	inline static StatusChange *s_pfnStatusChange;
 	inline static byte *s_pvDataBuf;
-	inline static FatFile m_arHandles[FAT_MAX_HANDLES];
+	inline static FatFile s_arHandles[FAT_MAX_HANDLES];
 
 	friend class FatSys;
 };
