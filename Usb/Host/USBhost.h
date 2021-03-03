@@ -39,6 +39,7 @@ enum HostAction
 	HOSTACT_DriverAction,	// Driver actions start here
 	HOSTACT_MouseChange,
 	HOSTACT_FlashReady,
+	HOSTACT_KeyboardChange,
 };
 
 //*************************************************************************

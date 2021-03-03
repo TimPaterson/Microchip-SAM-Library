@@ -20,6 +20,7 @@ class KeyboardHost : public UsbHostDriver
 protected:
 	static constexpr int FirstKbKeycode = 4;	// 'a' is keycode 4
 	static constexpr int PacketBufferSize = 8;
+	static constexpr int KeyBufSize = 6;
 
 	enum DevState
 	{
@@ -37,7 +38,7 @@ protected:
 	{
 		byte	bModifiers;
 		byte	Reserved;
-		byte	Keys[6];
+		byte	Keys[KeyBufSize];
 	};
 
 	union UsbOutBuffer
@@ -135,7 +136,7 @@ public:
 
 	virtual void TransferComplete(int iPipe, int cbTransfer)
 	{
-		if (cbTransfer >= 3 && m_bufUsbKey.Keys[0] != 0)
+		if (cbTransfer >= 3)
 			m_stDev = DS_HaveKey;
 		InitPolling();
 	}
@@ -149,6 +150,9 @@ public:
 	virtual int Process()
 	{
 		ulong	key;
+		uint	code;
+		uint	codeNew;
+		uint	keyMap;
 		USBhost::ControlPacket	pkt;
 
 		switch (m_stDev)
@@ -178,14 +182,59 @@ public:
 			break;
 
 		case DS_HaveKey:
-			key = MapKey(m_bufUsbKey.Keys[0], m_bufUsbKey.bModifiers);
-			if (key == LockPrefix)
-				m_stDev = DS_SetIndicators;
-			else
+			// Need to see if we have any new keys by comparing to the array
+			// of previous keys.
+			keyMap = 0;
+			codeNew = 0;
+			// Look at each incoming key
+			for (int i = 0; i < KeyBufSize; i++)
 			{
-				m_keyReady = key | ((ulong)m_bufUsbKey.bModifiers << 16);
-				m_stDev = DS_Poll;
+				code = m_bufUsbKey.Keys[i];
+				if (code == 0)
+					continue;
+
+				for (int j = 0; j < KeyBufSize; j++)
+				{
+					if (m_arPrevKey[j] == code)
+					{
+						keyMap |= 1 << j;
+						m_bufUsbKey.Keys[i] = 0;
+						goto OldKey;
+					}
+				}
+				if (codeNew == 0)
+					codeNew = code;
+OldKey:
+				continue;
 			}
+
+			// Remove missing keys from list of previous keys
+			code = codeNew;
+			for (int i = 0; i < KeyBufSize; i++)
+			{
+				if ((keyMap & (1 << i)) == 0)
+				{
+					// This position did not match. Store new
+					// code, or just free it.
+					m_arPrevKey[i] = code;
+					code = 0;
+				}
+			}
+
+			if (codeNew != 0)
+			{
+				key = MapKey(codeNew, m_bufUsbKey.bModifiers);
+				if (key == LockPrefix)
+					m_stDev = DS_SetIndicators;
+				else
+				{
+					m_keyReady = key | ((ulong)m_bufUsbKey.bModifiers << 16);
+					m_stDev = DS_Poll;
+					return HOSTACT_KeyboardChange;
+				}
+			}
+			else
+				m_stDev = DS_Poll;
 			break;
 
 		case DS_SetIndicators:
@@ -335,6 +384,7 @@ protected:
 	UsbOutBuffer ALIGNED_ATTR(int)	m_bufUsbOut;
 
 	ulong	m_keyReady;
+	byte	m_arPrevKey[KeyBufSize];
 	bool	m_fPollStart;
 	byte	m_stDev;
 	byte	m_bConfig;
