@@ -43,11 +43,13 @@
 FatDateTime GetFatTime();
 
 
+//*************************************************************************
+// Drive operation state
+
 enum FatOp
 {
 	FATOP_None,
 	FATOP_Status,
-	FATOP_NoOp,
 	FATOP_NewFolder,
 	FATOP_Open,
 	FATOP_RenameOpen,
@@ -120,6 +122,14 @@ struct FatOpState
 	byte	CreateChecksum;
 };
 
+//*************************************************************************
+// Operation complete notification can have several flavors
+
+typedef void OpCompletePv(void *pv, int status);
+typedef void OpCompleteInt(int arg, int status);
+typedef void OpCompleteUint(uint arg, int status);
+
+//*************************************************************************
 
 class FatDrive : protected Storage
 {
@@ -216,7 +226,48 @@ public:
 		return FATERR_Busy;
 	}
 
+	void ProcessDrive()
+	{
+		PerformOp();
+		if (m_state.op == FATOP_Status && m_pfnOpComplete != NULL)
+		{
+			m_state.op = FATOP_None;
+			m_pfnOpComplete(m_pvOpCompleteArg, m_state.status);
+		}
+	}
+
 	uint GetDrive()		{ return m_drive; }
+
+	//*********************************************************************
+	// Set the callback for operation complete
+
+	void SetCompletionNotify(OpCompletePv *pfn, void *pv)
+	{
+		m_pfnOpComplete = pfn;
+		m_pvOpCompleteArg = pv;
+	}
+
+	void SetCompletionNotify(OpCompleteInt *pfn, int arg)
+	{
+		SetCompletionNotify((OpCompletePv *)pfn, (void *)arg);
+	}
+
+	void SetCompletionNotify(OpCompleteUint *pfn, uint arg)
+	{
+		SetCompletionNotify((OpCompletePv *)pfn, (void *)arg);
+	}
+
+	template<class T>
+	void SetCompletionNotifyMethod(void (T::*pM)(int), T *pObj)
+	{
+		union 
+		{
+			void (T::*pM)(int); 
+			OpCompletePv *pfn;
+		} u;
+		u.pM = pM;
+		SetCompletionNotify(u.pfn, pObj);
+	}
 
 	//*********************************************************************
 
@@ -274,6 +325,9 @@ protected:
 		byte		*pbBuf;
 		byte		*pb;
 		FatBufDesc	*pDesc;
+
+		if (m_state.op == FATOP_None || m_state.op == FATOP_Status)
+			return;
 
 		err = GetStatus();
 		if (err == FATERR_Busy)
@@ -459,9 +513,6 @@ Invalidate:
 		{
 		case FATOP_None:
 			return;
-
-		case FATOP_NoOp:
-			break;
 
 		case FATOP_NewFolder:
 			SetFirstClus(pf);	// Sets buffer dirty, file clean
@@ -2459,6 +2510,8 @@ NewClus:
 protected:
 	FatOpState m_state;
 	FatLocalBpb m_BPB;
+	OpCompletePv *m_pfnOpComplete;
+	void *m_pvOpCompleteArg;
 	byte	m_drive;
 
 protected:

@@ -38,6 +38,7 @@ public:
 	static byte *GetDataBuf()			{ return FatDrive::s_pvDataBuf; }
 	static bool IsDriveMounted(int drv)	{ return m_arDrives[drv]->IsMounted(); }
 	static void SetStatusNotify(FatDrive::StatusChange *pfn) { FatDrive::SetStatusNotify(pfn); }
+	static uint DriveFromHandle(uint h)	{ return HandleToPointer(h)->GetDrive(); }
 
 	//static byte SetDate(byte handle, ulong dwTime) {return SetFatDate(handle, ToFatTime(dwTime));}
 	/*
@@ -49,6 +50,48 @@ public:
 	*/
 
 public:
+	//*********************************************************************
+	// Set the callback for operation complete
+
+	void SetCompletionNotify(uint drive, OpCompletePv *pfn, void *pv = NULL)
+	{
+		DriveToPointer(drive)->SetCompletionNotify(pfn, pv);
+	}
+
+	void SetCompletionNotify(uint drive, OpCompleteInt *pfn, int arg = 0)
+	{
+		DriveToPointer(drive)->SetCompletionNotify((OpCompletePv *)pfn, (void *)arg);
+	}
+
+	void SetCompletionNotify(uint drive, OpCompleteUint *pfn, uint arg = 0)
+	{
+		DriveToPointer(drive)->SetCompletionNotify((OpCompletePv *)pfn, (void *)arg);
+	}
+
+	template<class T>
+	void SetCompletionNotifyMethod(uint drive, void (T::*pM)(int), T *pObj)
+	{
+		union 
+		{
+			void (T::*pM)(int); 
+			OpCompletePv *pfn;
+		} u;
+		u.pM = pM;
+		DriveToPointer(drive)->SetCompletionNotify(u.pfn, pObj);
+	}
+
+	//****************************************************************************
+
+	static void Process()
+	{
+		// Perform pending operation for each drive. If operation completes,
+		// the completion notification will be called if set.
+		for (uint drvCur = 0; drvCur < FAT_NUM_DRIVES; drvCur++)
+			DriveToPointer(drvCur)->ProcessDrive();
+	}
+
+	//****************************************************************************
+
 	static int GetDriveStatus(uint drive)
 	{
 		FatDrive	*pDrive;

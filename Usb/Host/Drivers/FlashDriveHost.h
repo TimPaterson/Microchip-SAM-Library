@@ -119,6 +119,9 @@ class FlashDriveHost : public FatDrive, public UsbHostDriver
 			return err;
 
 		default:
+			// Ensure the USB process loop is executed. This is needed
+			// when using FAT functions that spin on GetStatus waiting
+			// for completion.
 			Process();
 			break;
 		}
