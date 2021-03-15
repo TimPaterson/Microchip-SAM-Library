@@ -255,7 +255,7 @@ public:
 
 	INLINE_ATTR Timer_t GetIntervalTicksReset()
 	{
-		return GetIntervalTicks(GetTickCount());
+		return GetIntervalTicksReset(GetTickCount());
 	}
 
 	INLINE_ATTR Timer_t GetIntervalTicksReset(Timer_t time)

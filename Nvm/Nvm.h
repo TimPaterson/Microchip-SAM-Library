@@ -13,60 +13,68 @@ class Nvm
 public:
 	static bool IsReady()	{ return NVMCTRL->INTFLAG.bit.READY; }
 
+	//*********************************************************************
+	// Assume NVM ready, inline and don't wait
+	//
+	// These MUST be inline so they can be used in RAMFUNC version
+
 public:
-	static void NO_INLINE_ATTR WaitReady()
+	static void EraseRowReady() INLINE_ATTR
+	{
+		NVMCTRL->CTRLA.reg = NVMCTRL_CTRLA_CMDEX_KEY | NVMCTRL_CTRLA_CMD_ER;
+	}
+
+	static void EraseRowReady(void *pv) INLINE_ATTR
+	{
+		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
+		EraseRowReady();
+	}
+
+	static void WritePageReady() INLINE_ATTR
+	{
+		NVMCTRL->CTRLA.reg = NVMCTRL_CTRLA_CMDEX_KEY | NVMCTRL_CTRLA_CMD_WP;
+	}
+
+	static void WritePageReady(void *pv) INLINE_ATTR
+	{
+		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
+		WritePageReady();
+	}
+
+	static void WaitReadyInline() INLINE_ATTR
 	{
 		while (!IsReady());
 	}
 
 	//*********************************************************************
-	// Assume NVM ready, inline and don't wait
-
-	static void EraseRowReady()
-	{
-		NVMCTRL->CTRLA.reg = NVMCTRL_CTRLA_CMDEX_KEY | NVMCTRL_CTRLA_CMD_ER;
-	}
-
-	static void EraseRowReady(void *pv)
-	{
-		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
-		EraseRowReady();
-	}
-
-	static void WritePageReady()
-	{
-		NVMCTRL->CTRLA.reg = NVMCTRL_CTRLA_CMDEX_KEY | NVMCTRL_CTRLA_CMD_WP;
-	}
-
-	static void WritePageReady(void *pv)
-	{
-		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
-		WritePageReady();
-	}
-
-	//*********************************************************************
 	// Wait for NVM ready, not inline
 
-	static void NO_INLINE_ATTR EraseRow()
+public:
+	static void WaitReady() NO_INLINE_ATTR
+	{
+		while (!IsReady());
+	}
+
+	static void EraseRow() NO_INLINE_ATTR
 	{
 		WaitReady();
 		EraseRowReady();
 	}
 
-	static void NO_INLINE_ATTR EraseRow(void *pv)
+	static void EraseRow(void *pv) NO_INLINE_ATTR
 	{
 		WaitReady();
 		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
 		EraseRowReady();
 	}
 
-	static void NO_INLINE_ATTR WritePage()
+	static void WritePage() NO_INLINE_ATTR
 	{
 		WaitReady();
 		WritePageReady();
 	}
 
-	static void NO_INLINE_ATTR WritePage(void *pv)
+	static void WritePage(void *pv) NO_INLINE_ATTR
 	{
 		WaitReady();
 		NVMCTRL->ADDR.reg = (ulong)pv >> 1;

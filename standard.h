@@ -47,8 +47,8 @@ typedef unsigned long	ulong;
 #define CAT3(x,y,z)		CAT3_(x,y,z)
 #define STRINGIFY_(x)	#x
 #define STRINGIFY(x)	STRINGIFY_(x)
+#define LOG2(x)			(31 - __builtin_clz(x))
 
-inline int LOG2(uint32_t x)					{ return 31 - __builtin_clz(x); }
 inline bool CompSign(int s1, int s2)		{ return (s1 ^ s2) >= 0; }
 
 // Rounded integer division/shifting
