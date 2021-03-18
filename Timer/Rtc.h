@@ -25,6 +25,7 @@ public:
 public:
 	bool operator == (RtcTimeBase op) { return rtcTime.reg == op.rtcTime.reg; }
 	bool operator != (RtcTimeBase op) { return !(rtcTime.reg == op.rtcTime.reg); }
+	RtcTimeBase operator = (RTC_MODE2_CLOCK_Type op) { rtcTime.reg = op.reg; return *this; }
 
 public:
 	RtcTimeBase ReadClock()	{ rtcTime.reg = RTC->MODE2.CLOCK.reg; return *this;}
@@ -43,6 +44,11 @@ public:
 	void SetDay(uint day)		{ rtcTime.bit.DAY = day; }
 	void SetMonth(uint month)	{ rtcTime.bit.MONTH = month; }
 	void SetYear(uint year)		{ rtcTime.bit.YEAR = year - BASE_YEAR; }
+
+	void SetTime(uint month, uint day, uint year, uint hour, uint minute, uint second)
+	{
+		rtcTime.reg = MakeTimeVal(month, day, year, hour, minute, second).reg;
+	}
 
 	// 12-hour clock
 	uint Hour12()
@@ -67,6 +73,8 @@ public:
 		// Add 1 to day and month, and adjust year for different base
 		return (rtcTime.reg >> 1) + FatTimeConversion;
 	}
+
+	RTC_MODE2_CLOCK_Type GetTimeVal()	{ return rtcTime; }
 
 public:
 	static void Init()
@@ -95,6 +103,11 @@ public:
 
 	static void SetClock(uint month, uint day, uint year, uint hour, uint minute, uint second)
 	{
+		RTC->MODE2.CLOCK.reg = MakeTimeVal(month, day, year, hour, minute, second).reg;
+	}
+
+	static RTC_MODE2_CLOCK_Type MakeTimeVal(uint month, uint day, uint year, uint hour, uint minute, uint second)
+	{
 		RTC_MODE2_CLOCK_Type	time;
 
 		time.bit.SECOND = second;
@@ -104,7 +117,7 @@ public:
 		time.bit.MONTH = month;
 		time.bit.YEAR = year - BASE_YEAR;
 
-		RTC->MODE2.CLOCK.reg = time.reg;
+		return time;
 	}
 
 protected:

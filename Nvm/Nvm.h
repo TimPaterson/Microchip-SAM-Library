@@ -50,31 +50,31 @@ public:
 	// Wait for NVM ready, not inline
 
 public:
-	static void WaitReady() NO_INLINE_ATTR
+	static void WaitReady()
 	{
 		while (!IsReady());
 	}
 
-	static void EraseRow() NO_INLINE_ATTR
+	static void EraseRow()
 	{
 		WaitReady();
 		EraseRowReady();
 	}
 
-	static void EraseRow(void *pv) NO_INLINE_ATTR
+	static void EraseRow(void *pv)
 	{
 		WaitReady();
 		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
 		EraseRowReady();
 	}
 
-	static void WritePage() NO_INLINE_ATTR
+	static void WritePage()
 	{
 		WaitReady();
 		WritePageReady();
 	}
 
-	static void WritePage(void *pv) NO_INLINE_ATTR
+	static void WritePage(void *pv)
 	{
 		WaitReady();
 		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
@@ -111,26 +111,26 @@ public:
 	//*********************************************************************
 	// Wait for NVM ready, not inline
 
-	static void NO_INLINE_ATTR EraseRwweeRow()
+	static void EraseRwweeRow()
 	{
 		WaitReady();
 		EraseRwweeRowReady();
 	}
 
-	static void NO_INLINE_ATTR EraseRwweeRow(void *pv)
+	static void EraseRwweeRow(void *pv)
 	{
 		WaitReady();
 		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
 		EraseRwweeRowReady();
 	}
 
-	static void NO_INLINE_ATTR WriteRwweePage()
+	static void WriteRwweePage()
 	{
 		WaitReady();
 		WriteRwweePageReady();
 	}
 
-	static void NO_INLINE_ATTR WriteRwweePage(void *pv)
+	static void WriteRwweePage(void *pv)
 	{
 		WaitReady();
 		NVMCTRL->ADDR.reg = (ulong)pv >> 1;
