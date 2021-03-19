@@ -149,14 +149,14 @@ public:
 	static void WriteRwweePage(void *pv)	{ WritePage(pv); }
 #endif
 
-	static void NO_INLINE_ATTR memcpy32(void *pvDest, void *pvSrc, int cb)
+	static void NO_INLINE_ATTR memcpy32(void *pvDest, const void *pvSrc, int cb)
 	{
 		ulong	*puDest;
 		ulong	*puSrc;
 	
 		puDest = (ulong *)pvDest;
 		puSrc = (ulong *)pvSrc;
-		for (cb /= sizeof(ulong); cb > 0; cb--)
+		for (; cb > 0; cb -= sizeof(ulong))
 			*puDest++ = *puSrc++;
 	}
 };
