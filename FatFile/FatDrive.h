@@ -62,6 +62,7 @@ enum FatOp
 	FATOP_Write,
 	FATOP_Enum,
 	FATOP_Seek,
+	FATOP_MountDev,
 	FATOP_Mount,
 	FATOP_Close,
 	FATOP_CloseAll,
@@ -280,16 +281,17 @@ public:
 		if (IsError(err))
 			return err;
 
-		InvalidateAll();
-		m_state.op = FATOP_Mount;
-		return StartBuf(0);
+		m_state.op = FATOP_MountDev;
+		return FATERR_None;
 	}
 
 	void Dismount()		
 	{
+		DismountDev();
 		m_BPB.bFlags = 0;
 		if (s_pfnStatusChange != NULL)
 			s_pfnStatusChange(m_drive, FDS_Dismounted);
+		InvalidateAllBuffers();
 	}
 
 	bool IsMounted()	{return m_BPB.fFat16 || m_BPB.fFat32;}
@@ -345,7 +347,7 @@ protected:
 		{
 			m_state.fStartRead = 0;
 			err = ReadData(CurBufBlock(), CurBuf());
-			if (IsErrorNotBusy(err))
+			if (IsError(err))
 			{
 Invalidate:
 				m_state.fStartRead = 0;
@@ -668,14 +670,14 @@ Invalidate:
 							if (IsError(err))
 								break;
 							err = WriteData(ulTmp, m_state.pb);
-							if (IsErrorNotBusy(err))
+							if (IsError(err))
 								break;
 							cb = FAT_SECT_SIZE;
 							goto UpdatePos;
 						}
 						m_state.op = FATOP_BlockRead;
 						err = ReadData(ulTmp, m_state.pb);
-						if (IsErrorNotBusy(err))
+						if (IsError(err))
 							break;	// finished, with error
 						return;
 					}
@@ -867,6 +869,11 @@ Invalidate:
 			err = StartBuf(FatSectFromClus(clus.ul));
 			break;
 
+		case FATOP_MountDev:
+			m_state.op = FATOP_Mount;
+			err = StartBuf(0);	// Read boot sector to start mount
+			break;
+
 		case FATOP_Mount:
 			err = MountDrive();
 			if (err == FATERR_None && s_pfnStatusChange != NULL)
@@ -996,7 +1003,7 @@ Invalidate:
 	static ulong CurBufBlock()				{ return CurBufDesc()->GetBlock(); }
 	static FatBufDesc *BufDescFromIndex(byte iBuf)	{return FatBuffer::BufDescFromIndex(iBuf);}
 
-	void InvalidateAll()
+	void InvalidateAllBuffers()
 	{
 		FatBuffer::InvalidateAll(m_drive);
 	}
@@ -1039,7 +1046,7 @@ Invalidate:
 		if (pDesc->IsDirty())
 		{
 			err = WriteData(pDesc->GetBlock(), BufFromIndex(buf));
-			if (IsErrorNotBusy(err))
+			if (IsError(err))
 				return err;
 		}
 		pDesc->SetFlagsDirty(false);
@@ -1052,7 +1059,7 @@ Invalidate:
 
 	typedef ALIGNED_ATTR(byte) ushort unaligned_ushort;
 
-	static byte FillLongName(unaligned_ushort *pwName, uint cch1, char *pchLongName, int cch)
+	static int FillLongName(unaligned_ushort *pwName, uint cch1, char *pchLongName, int cch)
 	{
 		ushort		wch;
 
@@ -1771,13 +1778,8 @@ Invalidate:
 
 	static void MakeDotName(FatShortDirEnt *pDir, ulong dwClus, FatDateTime daytime)
 	{
-		char	*pch;
-		byte	i;
-
 		pDir->Name[0] = '.';
-		//memset(&pDir->Name[1], ' ', (sizeof pDir->Name) - 1);
-		for (pch = &pDir->Name[1], i = (sizeof pDir->Name) - 1; i > 0; i--)
-			*pch++ = ' ';
+		memset(&pDir->Name[1], ' ', (sizeof pDir->Name) - 1);
 		pDir->FirstClusHi = dwClus >> 16;
 		pDir->FirstClusLo = (ushort)dwClus;
 		pDir->WriteTime = daytime.time;
@@ -2307,7 +2309,7 @@ NewClus:
 			for (;;)
 			{
 				chFirst = *pchName;
-				if (chFirst != '\\' && chFirst!= '/')
+				if (chFirst != '\\' && chFirst != '/')
 					break;
 				pchName++;
 				cchName--;

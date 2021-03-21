@@ -168,7 +168,7 @@ public:
 		int			hFile;
 		int			err;
 
-		hFile = GetHandle(hFolder, flags);
+		hFile = GetHandle(hFolder);
 		pf = HandleToPointer(hFile);
 
 		if (IsError(hFile))
@@ -222,7 +222,8 @@ public:
 		pDrive->m_state.cchFolderName = pDrive->ParseFolder();
 		if (pDrive->m_state.cchFolderName == 0)
 		{
-			if ((flags & OPENFLAG_CreateBits) == OPENFLAG_CreateNew)
+			// If no name, can't create, delete, rename
+			if (flags & OPENFLAG_DeleteBit || (flags & OPENFLAG_CreateBits) == OPENFLAG_CreateNew)
 			{
 				err = FATERR_InvalidFileName;
 				goto CloseErr;
@@ -342,7 +343,7 @@ public:
 		FatFile		*pf;
 
 		// Start new enumeration
-		h = GetHandle(handle, flags);
+		h = GetHandle(handle);
 		if (IsError(h))
 			return h;
 		pf = HandleToPointer(h);
@@ -377,7 +378,7 @@ public:
 			return FATERR_Busy;
 
 		// Get the handle to return if found
-		hFile = GetHandle(hParent, 0);
+		hFile = GetHandle(hParent);
 		if (IsError(hFile))
 			return hFile;
 		pf = HandleToPointer(hFile);
@@ -434,7 +435,7 @@ public:
 
 	//****************************************************************************
 
-	static int StartRename(const char *pchName, int hFolder, uint hSrc, int cchName = 0) NO_INLINE_ATTR
+	static int StartRename(const char *pchName, int hFolder, uint hSrc, int cchName = FAT_NO_NAME_LEN) NO_INLINE_ATTR
 	{
 		FatFile		*pf;
 		FatDrive	*pDrive;
@@ -615,7 +616,7 @@ protected:
 
 	//****************************************************************************
 
-	static int GetHandle(int hFolder, uint flags) NO_INLINE_ATTR
+	static int GetHandle(int hFolder) NO_INLINE_ATTR
 	{
 		FatFile		*pfFolder;
 		FatFile		*pf;

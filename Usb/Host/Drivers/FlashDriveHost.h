@@ -102,7 +102,7 @@ class FlashDriveHost : public FatDrive, public UsbHostDriver
 	//*********************************************************************
 	// Implementation of Storage class in FatDrive
 	//*********************************************************************
-
+public:
 	virtual int GetStatus()
 	{
 		int		err;
@@ -131,7 +131,7 @@ class FlashDriveHost : public FatDrive, public UsbHostDriver
 	virtual int ReadData(ulong Lba, void *pv, uint cBlock)
 	{
 		if (m_stDrive != DS_Idle)
-			return STERR_NotAvail;
+			return STERR_Busy;
 
 		m_stDrive = DS_Busy;
 		m_stCommand = CS_Read;
@@ -145,13 +145,13 @@ class FlashDriveHost : public FatDrive, public UsbHostDriver
 		bufCommand.Cmd.Read10.wTransferLength = cBlock;
 
 		UsbSendData(&bufCommand, sizeof bufCommand.Cmd);
-		return STERR_Busy;
+		return STERR_None;
 	}
 
-	virtual int WriteData(ulong Lba, void *pv, uint cBlock = 1)
+	virtual int WriteData(ulong Lba, void *pv, uint cBlock)
 	{
 		if (m_stDrive != DS_Idle)
-			return STERR_NotAvail;
+			return STERR_Busy;
 
 		m_stDrive = DS_Busy;
 		m_stCommand = CS_Write;
@@ -165,7 +165,7 @@ class FlashDriveHost : public FatDrive, public UsbHostDriver
 		bufCommand.Cmd.Write10.wTransferLength = cBlock;
 
 		UsbSendData(&bufCommand, sizeof bufCommand.Cmd);
-		return STERR_Busy;
+		return STERR_None;
 	}
 
 	virtual int InitDev() { return STERR_None; }

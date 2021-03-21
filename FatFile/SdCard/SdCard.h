@@ -19,8 +19,9 @@
 #include <FatFile/SdCard/SdConst.h>
 
 
-#define SDCARD_MAX_READ_WAIT	1000
-#define SDCARD_MAX_WRITE_WAIT	50000
+static constexpr int SDCARD_MAX_READ_WAIT	= 1000;
+static constexpr int SDCARD_MAX_WRITE_WAIT	= 50000;
+static constexpr int SDCARD_MAX_MOUNT_WAIT	= 10000;
 
 #define	ErrGoTo(e, loc)		do {err = e; goto loc;} while (0)
 #define	ErrGoDeselect(e)	ErrGoTo(e, Deselect)
@@ -32,11 +33,12 @@ class SdCard : public FatDrive, public T
 	// Types
 	//*********************************************************************
 
-	enum SdReadWriteFlags
+	enum SdOpState
 	{
-		SDWAIT_None,
-		SDWAIT_Read,
-		SDWAIT_Write
+		SDOP_None,
+		SDOP_Read,
+		SDOP_Write,
+		SDOP_Mount,
 	};
 
 	enum SdMountFlags
@@ -53,15 +55,24 @@ public:
 	virtual int GetStatus()
 	{
 		int		err;
+		int		res;
 		uint	cBlock;
 
-		if (m_state == SDWAIT_None)
+		if (m_state == SDOP_None)
 			return STERR_None;
 
 		Select();
-		if (m_state == SDWAIT_Read)
+		switch (m_state)
 		{
-			err = ReadStatus();
+		case SDOP_Read:
+			err = CheckReadStatus();
+			if (err == STERR_Busy)
+			{
+				if (--m_cRetry == 0)
+					err = STERR_TimeOut;
+				break;
+			}
+
 			if (err == STERR_None)
 			{
 				T::ReadBytes(m_pData, SDCARD_BLOCK_SIZE);
@@ -70,35 +81,94 @@ public:
 				SpiRead();
 				SpiRead();
 
-				m_state = SDWAIT_None;
+				m_state = SDOP_None;
 				Deselect();
 
 				// Start next block
 				cBlock = m_cBlock - 1;
 				if (cBlock > 0)
+				{
 					err = ReadData(++m_Lba, m_pData + SDCARD_BLOCK_SIZE, cBlock);
+					if (err == STERR_None)
+						return STERR_Busy;
+				}
 				return err;
 			}
-			else if (err != STERR_Busy)
-				goto Finished;
-		}
-		else
-		{
+			break;
+
+		case SDOP_Write:
 			err = SpiRead();
 			if (err == 0)
 			{
 				if (--m_cRetry == 0)
-					ErrGoTo(STERR_TimeOut, Finished);
-				ErrGoDeselect(STERR_Busy);
+					err = STERR_TimeOut;
+				else
+					err = STERR_Busy;
+			}
+			else
+			{
+				err = GetCardStatus();
+				if (err == STERR_None)
+				{
+					m_state = SDOP_None;
+					Deselect();
+
+					// Start next block
+					cBlock = m_cBlock - 1;
+					if (cBlock > 0)
+					{
+						err = WriteData(++m_Lba, m_pData + SDCARD_BLOCK_SIZE, cBlock);
+						if (err == STERR_None)
+							return STERR_Busy;
+					}
+					return err;
+				}
+			}
+			break;
+
+		case SDOP_Mount:
+			err = SendCommand(SDCARD_APP_CMD);
+			err = SendCommand(SDCARD_APP_SEND_OP_COND, SDCARD_OP_COND_HCS_ARG);
+			res = SDMOUNT_NotMounted;
+
+			if (err == SDCARD_R1_READY)
+			{
+				// See if hi capacity
+				err = SendCommand(SDCARD_READ_OCR);
+				res = SDMOUNT_LoCap;
+				if (err == SDCARD_R1_READY)
+				{
+					// Get last 4 bytes of response R3
+					err = SpiRead();
+					if (err & SDCARD_R3_MSB_CCS)
+						res = SDMOUNT_HiCap;
+
+					for (int j = 3; j > 0; j--)
+						err = SpiRead();
+				}
+				err = res;
+			}
+			else
+			{
+				if (--m_cRetry == 0)
+					err = STERR_TimeOut;
+				else
+					err = STERR_Busy;
 			}
 
-			err = GetCardStatus();
-	Finished:
-			m_state = SDWAIT_None;
+			// Crank the speed up
+			m_fMount = res;
+			T::SetClockFast();
+			break;
+
+		default:
+			err = STERR_None;
+			break;
 		}
 
-	Deselect:
 		Deselect();
+		if (err != STERR_Busy)
+			m_state = SDOP_None;
 		return err;
 	}
 
@@ -109,12 +179,60 @@ public:
 
 	virtual int MountDev()
 	{
-		return MountCard();
+		int		i;
+		int		err;
+
+		m_fMount = SDMOUNT_NotMounted;
+
+		if (!T::SdCardPresent())
+			return STERR_NoMedium;
+
+		T::SetClockSlow();
+
+		for (i = 10; i > 0; i--)
+			SpiRead();
+
+		Select();
+
+		for (i = SDCARD_BLOCK_SIZE - 1; i > 0; i--)
+			SpiRead();
+
+		err = SendCommand(SDCARD_GO_IDLE_STATE);
+		if (err != SDCARD_R1_IDLE)
+			ErrGoDeselect(STERR_NoMedium);
+
+		// See if v.2 card
+		err = SendCommand(SDCARD_SEND_IF_COND, SDCARD_IF_COND_VHS_ARG);
+		if (err == SDCARD_R1_IDLE)
+		{
+			// v.2 card. Get last 4 bytes of response R7
+			for (i = 3; i > 0; i--)
+			{
+				err = SpiRead();
+			}
+			if (err !=	SDCARD_VHS)
+				ErrGoDeselect(STERR_DevFail);
+
+			err = SpiRead();
+			if (err !=	SDCARD_CHECK_PATTERN)
+				ErrGoDeselect(STERR_DevFail);
+		}
+
+		m_state = SDOP_Mount;
+		m_cRetry = SDCARD_MAX_MOUNT_WAIT;
+		err = STERR_None;
+
+	Deselect:
+		Deselect();
+		return err;
 	}
 
 	virtual int ReadData(ulong Lba, void *pv, uint cBlock)
 	{
 		int		err;
+
+		if (m_state != SDOP_None)
+			return STERR_Busy;
 
 		m_Lba = Lba;
 		m_pData = (byte *)pv;
@@ -131,16 +249,18 @@ public:
 			return MapR1Err(err);
 
 		// Access has started
-		m_state = SDWAIT_Read;
+		m_state = SDOP_Read;
 		m_cRetry = SDCARD_MAX_READ_WAIT;
 
-		return STERR_Busy;
+		return STERR_None;
 	}
 
 	virtual int WriteData(ulong Lba, void *pv, uint cBlock)
 	{
-		byte	bTmp;
 		int		err;
+
+		if (m_state != SDOP_None)
+			return STERR_Busy;
 
 		m_Lba = Lba;
 		m_pData = (byte *)pv;
@@ -151,9 +271,9 @@ public:
 			Lba <<= 9;
 
 		Select();
-		bTmp = SendCommand(SDCARD_WRITE_BLOCK, Lba);
-		if (bTmp != SDCARD_R1_READY)
-			ErrGoDeselect(MapR1Err(bTmp));
+		err = SendCommand(SDCARD_WRITE_BLOCK, Lba);
+		if (err != SDCARD_R1_READY)
+			ErrGoDeselect(MapR1Err(err));
 
 		// Send data token
 		SpiWrite(SDCARD_START_TOKEN);
@@ -162,23 +282,23 @@ public:
 		// Get data response
 		for (int i = 0; i < 10; i++)
 		{
-			bTmp = SpiRead();
-			if (bTmp != 0xFF)
+			err = SpiRead();
+			if (err != 0xFF)
 				break;
 		}
 
-		bTmp &= SDCARD_DATRESP_MASK;
-		if (bTmp != SDCARD_DATRESP_ACCEPTED)
+		err &= SDCARD_DATRESP_MASK;
+		if (err != SDCARD_DATRESP_ACCEPTED)
 		{
-			if (bTmp == SDCARD_DATRESP_WRITE_ERR)
+			if (err == SDCARD_DATRESP_WRITE_ERR)
 				ErrGoDeselect(GetCardStatus());
 			ErrGoDeselect(STERR_DevFail);
 		}
 
 		// No error, set up time-out on write
-		m_state = SDWAIT_Write;
+		m_state = SDOP_Write;
 		m_cRetry = SDCARD_MAX_WRITE_WAIT;
-		err = STERR_Busy;
+		err = STERR_None;
 
 	Deselect:
 		Deselect();
@@ -200,9 +320,9 @@ protected:
 	void Select()			{ T::Select(); }
 	void Deselect()			{ T::Deselect(); }
 
-	byte SendCommand(byte cmd, ulong ulArg = 0)
+	uint SendCommand(uint cmd, ulong ulArg = 0)
 	{
-		byte		bTmp;
+		uint		bTmp;
 		LONG_BYTES	lbArg;
 
 		lbArg.ul = ulArg;
@@ -237,7 +357,7 @@ protected:
 
 	//****************************************************************************
 
-	int MapR1Err(byte err)
+	int MapR1Err(uint err)
 	{
 		if (err == SDCARD_R1_READY)
 			return STERR_None;
@@ -256,25 +376,9 @@ protected:
 
 	//****************************************************************************
 
-	int ReadStatus() NO_INLINE_ATTR
-	{
-		int	err;
-
-		err = CheckReadStatus();
-		if (err != STERR_Busy)
-			return err;
-
-		// Still waiting for data
-		if (--m_cRetry == 0)
-			return STERR_TimeOut;
-		return STERR_Busy;
-	}
-
-	//****************************************************************************
-
 	int CheckReadStatus()
 	{
-		byte	bTmp;
+		uint	bTmp;
 
 		// Check for data
 		bTmp = SpiRead();
@@ -296,10 +400,10 @@ protected:
 
 	//****************************************************************************
 
-	byte GetCardStatus() NO_INLINE_ATTR
+	int GetCardStatus() NO_INLINE_ATTR
 	{
-		byte	b1;
-		byte	b2;
+		uint	b1;
+		uint	b2;
 
 		b1 = SendCommand(SDCARD_SEND_STATUS);
 		b2 = SpiRead();	// 2nd byte of status
@@ -313,89 +417,14 @@ protected:
 		return MapR1Err(b1);
 	}
 
-	//****************************************************************************
-
-	int MountCard()
-	{
-		byte	bTmp;
-		int		i;
-		int		err;
-
-		if (!T::SdCardPresent())
-			return STERR_NoMedium;
-
-		T::SetClockSlow();
-
-		for (i = 10; i > 0; i--)
-			SpiRead();
-
-		Select();
-
-		for (i = SDCARD_BLOCK_SIZE - 1; i > 0; i--)
-			SpiRead();
-
-		bTmp = SendCommand(SDCARD_GO_IDLE_STATE);
-		if (bTmp != SDCARD_R1_IDLE)
-			ErrGoDeselect(STERR_NoMedium);
-
-		// See if v.2 card
-		bTmp = SendCommand(SDCARD_SEND_IF_COND, SDCARD_IF_COND_VHS_ARG);
-		if (bTmp == SDCARD_R1_IDLE)
-		{
-			// v.2 card. Get last 4 bytes of response R7
-			for (i = 3; i > 0; i--)
-			{
-				bTmp = SpiRead();
-			}
-			if (bTmp !=	SDCARD_VHS)
-				goto Error;
-
-			bTmp = SpiRead();
-			if (bTmp !=	SDCARD_CHECK_PATTERN)
-				goto Error;
-		}
-
-		// Initialize card
-		for (i = 0; i < 10000; i++)
-		{
-			bTmp = SendCommand(SDCARD_APP_CMD);
-			bTmp = SendCommand(SDCARD_APP_SEND_OP_COND, SDCARD_OP_COND_HCS_ARG);
-			if (bTmp == SDCARD_R1_READY)
-			{
-				// See if hi capacity
-				bTmp = SendCommand(SDCARD_READ_OCR);
-				err = SDMOUNT_LoCap;
-				if (bTmp == SDCARD_R1_READY)
-				{
-					// Get last 4 bytes of response R3
-					bTmp = SpiRead();
-					if (bTmp & SDCARD_R3_MSB_CCS)
-						err = SDMOUNT_HiCap;
-
-					for (int j = 3; j > 0; j--)
-						bTmp = SpiRead();
-				}
-				goto Deselect;
-			}
-		}
-
-	Error:
-		err = STERR_TimeOut;
-	Deselect:
-		// Crank the speed up
-		Deselect();
-		T::SetClockFast();
-		m_fMount = IsError(err) ? SDMOUNT_NotMounted : err;
-		return err;
-	}
 	//*********************************************************************
-	// static (RAM) data
+	// instance (RAM) data
 	//*********************************************************************
 
 	byte	*m_pData;
 	ulong	m_Lba;
 	ushort	m_cRetry;
-	byte	m_cBlock;
+	ushort	m_cBlock;
 	byte	m_state;
 	byte	m_fMount;
 };
