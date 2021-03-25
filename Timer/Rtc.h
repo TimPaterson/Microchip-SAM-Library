@@ -29,14 +29,14 @@ public:
 
 public:
 	RtcTimeBase ReadClock()	{ rtcTime.reg = RTC->MODE2.CLOCK.reg; return *this;}
-	bool IsSet()		{ return rtcTime.reg != 0; }
-	void SetClock()		{ RTC->MODE2.CLOCK.reg = rtcTime.reg; }
-	uint Second()		{ return rtcTime.bit.SECOND; }
-	uint Minute()		{ return rtcTime.bit.MINUTE; }
-	uint Hour()			{ return rtcTime.bit.HOUR; }
-	uint Day()			{ return rtcTime.bit.DAY; }
-	uint Month()		{ return rtcTime.bit.MONTH; }
-	uint Year()			{ return rtcTime.bit.YEAR + BASE_YEAR; }
+	bool IsSet()			{ return rtcTime.reg != 0; }
+	void SetClock()			{ SetClock(rtcTime); }
+	uint Second()			{ return rtcTime.bit.SECOND; }
+	uint Minute()			{ return rtcTime.bit.MINUTE; }
+	uint Hour()				{ return rtcTime.bit.HOUR; }
+	uint Day()				{ return rtcTime.bit.DAY; }
+	uint Month()			{ return rtcTime.bit.MONTH; }
+	uint Year()				{ return rtcTime.bit.YEAR + BASE_YEAR; }
 
 	void SetSecond(uint sec)	{ rtcTime.bit.SECOND = sec; }
 	void SetMinute(uint min)	{ rtcTime.bit.MINUTE = min; }
@@ -44,6 +44,14 @@ public:
 	void SetDay(uint day)		{ rtcTime.bit.DAY = day; }
 	void SetMonth(uint month)	{ rtcTime.bit.MONTH = month; }
 	void SetYear(uint year)		{ rtcTime.bit.YEAR = year - BASE_YEAR; }
+
+	void SetClock(RTC_MODE2_CLOCK_Type time)
+	{
+		RTC->MODE2.CLOCK.reg = time.reg;
+		// The write disabled automatic read synchronization. Turn it back on.
+		while (RTC->MODE2.STATUS.bit.SYNCBUSY);	// wait for write to finish
+		RTC->MODE2.READREQ.reg = RTC_READREQ_RREQ | RTC_READREQ_RCONT | RTC_READREQ_ADDR(RTC_MODE2_CLOCK_OFFSET);
+	}
 
 	void SetTime(uint month, uint day, uint year, uint hour, uint minute, uint second)
 	{
@@ -103,7 +111,7 @@ public:
 
 	static void SetClock(uint month, uint day, uint year, uint hour, uint minute, uint second)
 	{
-		RTC->MODE2.CLOCK.reg = MakeTimeVal(month, day, year, hour, minute, second).reg;
+		SetClock(MakeTimeVal(month, day, year, hour, minute, second));
 	}
 
 	static RTC_MODE2_CLOCK_Type MakeTimeVal(uint month, uint day, uint year, uint hour, uint minute, uint second)
