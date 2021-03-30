@@ -343,7 +343,7 @@ protected:
 			break;
 
 		case CS_Write:
-			m_stCommand = CS_GetStatus;
+			m_stCommand = CS_WaitData;
 			UsbSendData(m_pvTransfer, m_cbTransfer);
 			break;
 
