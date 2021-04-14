@@ -34,8 +34,8 @@ class Dmac_t
 	IsrDesc m_arIsr[iChanCnt];
 
 public:
-	DmacDescriptor	Desc[iChanCnt]  __attribute__ ((aligned (16)));
-	DmacDescriptor	Writeback[iChanCnt];
+	inline static DmacDescriptor	Desc[iChanCnt]  __attribute__ ((aligned (16)));
+	inline static DmacDescriptor	Writeback[iChanCnt]  __attribute__ ((aligned (16)));
 
 	// Methods
 public:
