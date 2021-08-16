@@ -223,27 +223,33 @@ inline void SetPortConfig(uint uConfig, uint uPins, int iPort)
 inline void SetPortConfigA(uint uConfig, uint uPins) { SetPortConfig(uConfig, uPins, 0); }
 inline void SetPortConfigB(uint uConfig, uint uPins) { SetPortConfig(uConfig, uPins, 1); }
 
-inline void SetPortMux(uint uMux, uint uPins, int iPort)
+inline void SetPortMuxConfig(uint uMux, uint uConfig, uint uPins, int iPort)
 {
 	SetPortConfig(		
+		uConfig | 
 		PORT_WRCONFIG_WRPMUX |
 		PORT_WRCONFIG_PMUX(uMux) |
-		PORT_WRCONFIG_INEN |
 		PORT_WRCONFIG_PMUXEN,
 		uPins,
 		iPort
 	);
 }
 
-inline void SetPortMuxA(uint uMux, uint uPins)	{ SetPortMux(uMux, uPins, 0); }
-inline void SetPortMuxB(uint uMux, uint uPins)	{ SetPortMux(uMux, uPins, 1); }
+inline void SetPortMux(uint uMux, uint uPins, int iPort)
+{
+	SetPortMuxConfig(uMux, 0, uPins, iPort);	
+}
+
+inline void SetPortMuxConfigA(uint uMux, uint uConfig, uint uPins)	{ SetPortMuxConfig(uMux, uConfig, uPins, 0); }
+inline void SetPortMuxConfigB(uint uMux, uint uConfig, uint uPins)	{ SetPortMuxConfig(uMux, uConfig, uPins, 1); }
+inline void SetPortMuxA(uint uMux, uint uPins)						{ SetPortMux(uMux, uPins, 0); }
+inline void SetPortMuxB(uint uMux, uint uPins)						{ SetPortMux(uMux, uPins, 1); }
 
 inline void SetPortMuxPin(uint uMux, uint uPin)
 {
 	SetPortConfig(		
 		PORT_WRCONFIG_WRPMUX |
 		PORT_WRCONFIG_PMUX(uMux) |
-		PORT_WRCONFIG_INEN |
 		PORT_WRCONFIG_PMUXEN,
 		1 << (uPin & 0x1F),
 		uPin >> 5
