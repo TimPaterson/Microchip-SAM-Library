@@ -8,40 +8,34 @@
 #pragma once
 
 #if		defined(_SYSTEM_SAMC20_H_INCLUDED_)
-	
-#define __SAMC20__
-
+	#define __SAMC20__
 #elif	defined(_SYSTEM_SAMC21_H_INCLUDED_)
-
-#define __SAMC21__
-
+	#define __SAMC21__
 #elif	defined(_SYSTEM_SAMD10_H_INCLUDED_)
-
-#define __SAMD10__
-
+	#define __SAMD10__
 #elif	defined(_SYSTEM_SAMD11_H_INCLUDED_)
-
-#define __SAMD11__
-
+	#define __SAMD11__
 #elif	defined(_SYSTEM_SAMD20_H_INCLUDED_)
-
-#define __SAMD20__
-
+	#define __SAMD20__
 #elif	defined(_SYSTEM_SAMD21_H_INCLUDED_)
-
-#define __SAMD21__
-
+	#define __SAMD21__
+#elif	defined(_SAM3U1C_) || defined(_SAM3U1E_) || defined(_SAM3U2C_) || \
+		defined(_SAM3U2E_) || defined(_SAM3U4C_) || defined(_SAM3U4E_)
+	#define __SAM3U__
+#else
+	#error Library does not support the specified device
 #endif
 
 
 #if		defined(__SAMC20__) || defined(__SAMC21__)
-
-#define __SAMC__
-
+	#define __SAMC__
+	#define __SAM_C_D__
 #elif	defined(__SAMD10__) || defined(__SAMD11__) || defined(__SAMD20__) || defined(__SAMD21__)
-
-#define __SAMD__
-
+	#define __SAMD__
+	#define __SAM_C_D__
+#elif	defined(__SAM3U__)
+	#define __SAM3__
+	#define __SAM_3_4__
 #endif
 
 //*********************************************************************
