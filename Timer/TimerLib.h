@@ -300,6 +300,22 @@ public:
 		return (Timer_t)(time - m_uLastTime) >= ticks;
 	}
 	
+	INLINE_ATTR bool CheckDelayReset_ticks(Timer_t ticks)
+	{
+		return CheckDelayReset_ticks(ticks, GetTickCount());
+	}
+	
+	INLINE_ATTR bool CheckDelayReset_ticks(Timer_t ticks, Timer_t time)
+	{
+		if ((Timer_t)(time - m_uLastTime) >= ticks)
+		{
+			m_uLastTime = time;
+			return true;
+		}
+		return false;
+	}
+	
+public:
 	INLINE_ATTR bool CheckInterval_ticks(Timer_t ticks)
 	{
 		return CheckInterval_ticks(ticks, GetTickCount());
@@ -334,7 +350,7 @@ public:
 		}
 		return false;
 	}
-	
+
 protected:
 	INLINE_ATTR static void DelayLoop(ulong loops)
 	{

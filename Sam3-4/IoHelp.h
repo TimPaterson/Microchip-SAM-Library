@@ -10,6 +10,8 @@
 
 inline void wdt_reset() {WDT->WDT_CR = WDT_CR_KEY_PASSWD | WDT_CR_WDRSTT;}
 
+#ifdef __cplusplus
+
 //*********************************************************************
 // Bit I/O helpers
 
@@ -58,4 +60,6 @@ inline uint GetDirPinsC()				{ return PIOC->PIO_OSR; }
 // Input
 inline uint GetPinsC()					{ return PIOC->PIO_PDSR; }
 
-#endif
+#endif	// ifdef PIOC
+
+#endif	// ifdef __cplusplus

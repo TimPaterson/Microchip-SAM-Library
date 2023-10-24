@@ -64,6 +64,7 @@ enum FatOp
 	FATOP_Seek,
 	FATOP_MountDev,
 	FATOP_Mount,
+	FATOP_MountUefi,
 	FATOP_Close,
 	FATOP_CloseAll,
 	FATOP_Flush,
@@ -93,6 +94,12 @@ struct FatOpState
 		{
 			byte	*pb;
 			ushort	cb;
+		};
+		// for MountDrive() if UEFI
+		struct 
+		{
+			ushort	GptEntryCount;
+			ushort	GptEntrySize;
 		};
 		ulong		dwSeekPos;
 		ulong		dwClusFree;
@@ -879,6 +886,10 @@ Invalidate:
 			if (err == FATERR_None && s_pfnStatusChange != NULL)
 				s_pfnStatusChange(m_drive, FDS_Mounted);
 			break;
+			
+		case FATOP_MountUefi:
+			err = MountUefi();
+			break;
 
 		case FATOP_GetDate:
 			// Compute position within directory sector
@@ -913,8 +924,20 @@ Invalidate:
 		FatBootSect		*pBoot;
 		FatBootSecTail	*pTail;
 		FatPartitionEnt	*pPartition;
+		GptHeader		*pGptHead;
 
 		pb = CurBuf();
+		
+		// Check if we have a UEFI header
+		pGptHead = (GptHeader *)pb;
+		if (pGptHead->Signature[0] == GPT_HEADER_SIGNATURE0 && pGptHead->Signature[1] == GPT_HEADER_SIGNATURE1)
+		{
+			m_state.GptEntryCount = pGptHead->NumberOfPartionEntries;
+			m_state.GptEntrySize = pGptHead->SizeOfPartitionEntry;
+			m_state.op = FATOP_MountUefi;
+			return StartBuf(pGptHead->PartitionEntryLbaLo);
+		}
+		
 		if (*(ushort *)(pb + FAT_SIG_OFFSET) != FAT_SIGNATURE)
 			return FATERR_CantMount;
 
@@ -989,6 +1012,43 @@ Invalidate:
 		}
 
 		return FATERR_None;
+	}
+	
+	int MountUefi()
+	{
+		ulong	curSize;
+		ulong	maxSize;
+		ulong	maxLba;
+		int		cnt;
+		GptPartitionEntry	*pGptEntry;
+		GptPartitionEntry	*pEnd;
+		
+		pGptEntry = (GptPartitionEntry *)CurBuf();
+		pEnd = (GptPartitionEntry *)ADDOFFSET(pGptEntry, FAT_SECT_SIZE);
+		maxSize = 0;
+		cnt = m_state.GptEntryCount;
+		
+		// Search for largest partition within this sector
+		do 
+		{
+			if ((pGptEntry->PartitionTypeGuid[0] | pGptEntry->PartitionTypeGuid[1] | 
+				pGptEntry->PartitionTypeGuid[2] | pGptEntry->PartitionTypeGuid[3]) != 0)
+			{
+				curSize = pGptEntry->EndingLbaLo - pGptEntry->StartingLbaLo;
+				if (curSize > maxSize)
+				{
+					maxSize = curSize;
+					maxLba = pGptEntry->StartingLbaLo;
+				}
+			}
+			pGptEntry = (GptPartitionEntry *)ADDOFFSET(pGptEntry, m_state.GptEntrySize);
+		} while (--cnt > 0 && pGptEntry + 1 < pEnd);
+		
+		if (maxSize == 0)
+			return FATERR_CantMount;
+			
+		m_state.op = FATOP_Mount;
+		return StartBuf(maxLba);
 	}
 
 	//*********************************************************************

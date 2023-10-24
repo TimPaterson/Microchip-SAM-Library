@@ -368,6 +368,13 @@ protected:
 				switch (m_cmdCur)
 				{
 				case SCSIOP_RequestSense:
+					if (m_stDrive == DS_WaitReady)
+					{
+						// Just keep trying
+						TestUnitReady();
+						return;
+					}
+				
 					if (bufCommand.Sense.bResponseCode == SCSISRC_CurrentError)
 					{
 						DEBUG_PRINT("Sense Key: %X, ASC: %02X, ASCQ: %02X\n", 

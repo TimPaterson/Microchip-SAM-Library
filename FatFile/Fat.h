@@ -185,3 +185,45 @@ union FatDirEnt
 
 #define FAT12_MAX_CLUS	4085
 #define FAT16_MAX_CLUS	65525
+
+//****************************************************************************
+// UEFI format
+
+#define GPT_HEADER_SIGNATURE0	('E' | ((ulong)'F' << 8) | ((ulong)'I' << 16) | ((ulong)' ' << 24))
+#define GPT_HEADER_SIGNATURE1	('P' | ((ulong)'A' << 8) | ((ulong)'R' << 16) | ((ulong)'T' << 24))
+
+struct GptHeader
+{
+	ulong	Signature[2];
+	ulong	Revision;
+	ulong	HeaderSize;
+	ulong	HeaderCrc32;
+	ulong	Reserved;
+	ulong	MyLbaLo;
+	ulong	MyLbaHi;
+	ulong	AlternateLbaLo;
+	ulong	AlternateLbaHi;
+	ulong	FirstUsableLbaLo;
+	ulong	FirstUsableLbaHi;
+	ulong	LastUsableLbaLo;
+	ulong	LastUsableLbaHi;
+	ulong	DiskGuid[4];
+	ulong	PartitionEntryLbaLo;
+	ulong	PartitionEntryLbaHi;
+	ulong	NumberOfPartionEntries;
+	ulong	SizeOfPartitionEntry;
+	ulong	PartitionEntryArrayCrc32;
+};
+
+struct GptPartitionEntry
+{
+	ulong	PartitionTypeGuid[4];
+	ulong	UniquePartitionGuid[4];
+	ulong	StartingLbaLo;
+	ulong	StartingLbaHi;
+	ulong	EndingLbaLo;
+	ulong	EndingLbaHi;
+	ulong	AttributesLo;
+	ulong	AttributesHi;
+	char	PartitionName[72];
+};

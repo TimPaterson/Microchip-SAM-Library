@@ -16,6 +16,8 @@ inline void wdt_reset() {if (!WDT->SYNCBUSY.bit.CLEAR) WDT->CLEAR.reg = WDT_CLEA
 #endif
 
 
+#ifdef __cplusplus
+
 //*********************************************************************
 // Bit I/O helpers
 
@@ -185,3 +187,5 @@ enum PORT_MUX
 	PORT_MUX_H,
 	PORT_MUX_I
 };
+
+#endif	// ifdef __cplusplus
