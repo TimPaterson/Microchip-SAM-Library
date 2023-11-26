@@ -37,6 +37,7 @@ typedef unsigned long	ulong;
 #define ALIGNED_ATTR(typ)	__attribute__((aligned(sizeof(typ))))
 #define RAMFUNC_ATTR	__attribute__ ((section(".ramfunc")))
 #define NAKED_ATTR		__attribute__ ((naked))
+#define NORETURN_ATTR	__attribute__ ((noreturn))
 #define VERSION_INFO	__attribute__ ((section(".version_info")))
 #define LOBYTE(w)       ((byte)(w))
 #define HIBYTE(w)       ((byte)((ushort)(w) >> 8))

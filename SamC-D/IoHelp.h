@@ -188,4 +188,19 @@ enum PORT_MUX
 	PORT_MUX_I
 };
 
+inline void SetPinConfig(uint config, uint pin, int port)
+{
+	PORT->Group[port].PINCFG[pin].reg = config;
+}
+
+inline void SetPinConfigA(uint config, uint pin)
+{
+	SetPinConfig(config, pin, 0);
+}
+
+inline void SetPinConfigB(uint config, uint pin)
+{
+	SetPinConfig(config, pin, 1);
+}
+
 #endif	// ifdef __cplusplus

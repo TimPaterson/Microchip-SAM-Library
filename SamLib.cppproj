@@ -189,6 +189,9 @@
     <Compile Include="Com\DmaUsart.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="Com\I2c.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="Com\Spi.h">
       <SubType>compile</SubType>
     </Compile>
