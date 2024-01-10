@@ -21,29 +21,28 @@ protected:
 
 public:
 	RtcTimeBase() {}
-	RtcTimeBase(bool fInit)	{ rtcTime.reg = 0; }
+	RtcTimeBase(bool fInit)	{ m_rtcTime.reg = 0; }
 public:
-	bool operator == (RtcTimeBase op) { return rtcTime.reg == op.rtcTime.reg; }
-	bool operator != (RtcTimeBase op) { return !(rtcTime.reg == op.rtcTime.reg); }
-	RtcTimeBase operator = (RTC_MODE2_CLOCK_Type op) { rtcTime.reg = op.reg; return *this; }
+	RtcTimeBase operator = (RTC_MODE2_CLOCK_Type op) { m_rtcTime.reg = op.reg; return *this; }
+	operator ulong() const { return m_rtcTime.reg; }
 
 public:
-	RtcTimeBase ReadClock()	{ rtcTime.reg = RTC->MODE2.CLOCK.reg; return *this;}
-	bool IsSet()			{ return rtcTime.reg != 0; }
-	void SetClock()			{ SetClock(rtcTime); }
-	uint Second()			{ return rtcTime.bit.SECOND; }
-	uint Minute()			{ return rtcTime.bit.MINUTE; }
-	uint Hour()				{ return rtcTime.bit.HOUR; }
-	uint Day()				{ return rtcTime.bit.DAY; }
-	uint Month()			{ return rtcTime.bit.MONTH; }
-	uint Year()				{ return rtcTime.bit.YEAR + BASE_YEAR; }
+	RtcTimeBase ReadClock()	{ m_rtcTime.reg = RTC->MODE2.CLOCK.reg; return *this;}
+	bool IsSet()			{ return m_rtcTime.reg != 0; }
+	void SetClock()			{ SetClock(m_rtcTime); }
+	uint Second()			{ return m_rtcTime.bit.SECOND; }
+	uint Minute()			{ return m_rtcTime.bit.MINUTE; }
+	uint Hour()				{ return m_rtcTime.bit.HOUR; }
+	uint Day()				{ return m_rtcTime.bit.DAY; }
+	uint Month()			{ return m_rtcTime.bit.MONTH; }
+	uint Year()				{ return m_rtcTime.bit.YEAR + BASE_YEAR; }
 
-	void SetSecond(uint sec)	{ rtcTime.bit.SECOND = sec; }
-	void SetMinute(uint min)	{ rtcTime.bit.MINUTE = min; }
-	void SetHour(uint hour)		{ rtcTime.bit.HOUR = hour; }
-	void SetDay(uint day)		{ rtcTime.bit.DAY = day; }
-	void SetMonth(uint month)	{ rtcTime.bit.MONTH = month; }
-	void SetYear(uint year)		{ rtcTime.bit.YEAR = year - BASE_YEAR; }
+	void SetSecond(uint sec)	{ m_rtcTime.bit.SECOND = sec; }
+	void SetMinute(uint min)	{ m_rtcTime.bit.MINUTE = min; }
+	void SetHour(uint hour)		{ m_rtcTime.bit.HOUR = hour; }
+	void SetDay(uint day)		{ m_rtcTime.bit.DAY = day; }
+	void SetMonth(uint month)	{ m_rtcTime.bit.MONTH = month; }
+	void SetYear(uint year)		{ m_rtcTime.bit.YEAR = year - BASE_YEAR; }
 
 	void SetClock(RTC_MODE2_CLOCK_Type time)
 	{
@@ -55,34 +54,34 @@ public:
 
 	void SetTime(uint month, uint day, uint year, uint hour, uint minute, uint second)
 	{
-		rtcTime.reg = MakeTimeVal(month, day, year, hour, minute, second).reg;
+		m_rtcTime.reg = MakeTimeVal(month, day, year, hour, minute, second).reg;
 	}
 
 	// 12-hour clock
 	uint Hour12()
 	{
-		uint hour = rtcTime.bit.HOUR;
+		uint hour = m_rtcTime.bit.HOUR;
 		return hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
 	}
 
-	bool AmPm()		{ return rtcTime.bit.HOUR >= 12; }
+	bool AmPm()		{ return m_rtcTime.bit.HOUR >= 12; }
 
 	void SetHour(uint hour, bool pm)		
 	{
 		if (pm)
-			rtcTime.bit.HOUR = hour >= 12 ? hour : hour + 12;
+			m_rtcTime.bit.HOUR = hour >= 12 ? hour : hour + 12;
 		else
-			rtcTime.bit.HOUR = hour == 12 ? 0 : hour;
+			m_rtcTime.bit.HOUR = hour == 12 ? 0 : hour;
 	}
 
 	// Conversion to FAT format
 	ulong GetFatTime()	
 	{
 		// Add 1 to day and month, and adjust year for different base
-		return (rtcTime.reg >> 1) + FatTimeConversion;
+		return (m_rtcTime.reg >> 1) + FatTimeConversion;
 	}
 
-	RTC_MODE2_CLOCK_Type GetTimeVal()	{ return rtcTime; }
+	RTC_MODE2_CLOCK_Type GetTimeVal()	{ return m_rtcTime; }
 
 public:
 	static void Init()
@@ -129,5 +128,5 @@ public:
 	}
 
 protected:
-	RTC_MODE2_CLOCK_Type	rtcTime;
+	RTC_MODE2_CLOCK_Type	m_rtcTime;
 };

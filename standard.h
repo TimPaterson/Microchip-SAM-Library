@@ -38,7 +38,8 @@ typedef unsigned long	ulong;
 #define RAMFUNC_ATTR	__attribute__ ((section(".ramfunc")))
 #define NAKED_ATTR		__attribute__ ((naked))
 #define NORETURN_ATTR	__attribute__ ((noreturn))
-#define VERSION_INFO	__attribute__ ((section(".version_info")))
+#define VERSION_INFO_ATTR	__attribute__ ((section(".version_info")))
+#define VERSION_INFO	__attribute__ ((section(".version_info")))	// for compatibility
 #define LOBYTE(w)       ((byte)(w))
 #define HIBYTE(w)       ((byte)((ushort)(w) >> 8))
 #define DIV_UINT_RND(x, y)	(((x) + (y) / 2) / (y))	// use this macro in constants
