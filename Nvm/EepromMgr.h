@@ -76,15 +76,14 @@ public:
 	void NO_INLINE_ATTR Save()
 	{
 		StartSave();
-		while (m_state != ST_None)
-			ProcessSave();
+		while (ProcessSave());
 	}
 	
-	void Process()
+	bool Process()
 	{
 		if (m_state == ST_None)
-			return;
-		ProcessSave();
+			return false;
+		return ProcessSave();
 	}
 
 	//*********************************************************************
@@ -92,7 +91,7 @@ public:
 // Protected methods
 protected:
 
-	void NO_INLINE_ATTR ProcessSave()
+	bool NO_INLINE_ATTR ProcessSave()
 	{
 		int		iRow;
 		int		iCount;
@@ -106,13 +105,13 @@ protected:
 		RowDesc	*pRowCur;
 
 		if (!Nvm::IsReady())
-			return;
+			return true;
 
 		iRow = m_iCurRow;
 		if (iRow >= iRowCount)
 		{
 			m_state = ST_None;
-			return;
+			return false;
 		}
 
 		pRowLo = (RowDesc *)(ManagedEepromStart + iRow * FlashRowSize * 2);
@@ -135,8 +134,8 @@ protected:
 
 		switch (m_state)
 		{
-			case ST_None:
-				return;
+			default:  // ST_None
+				return false;
 
 			case ST_Start:
 				// See if any changes have been made to the original row
@@ -147,7 +146,7 @@ protected:
 					memcmp(pRowCur + 1, pbPos, cbRow) == 0)
 				{
 					m_iCurRow++;
-					return;
+					return true;
 				}
 				m_ulCheck = ulCheck;
 				m_state = ST_WaitErase;
@@ -159,7 +158,7 @@ protected:
 				Nvm::EraseRwweeRowReady(pRow);
 				m_iCurPage = 1;	// Skip first page with row header for now
 				m_state = ST_WaitFill;
-				return;
+				return true;
 
 			case ST_WaitFill:
 				if (m_iCurPage < NVMCTRL_ROW_PAGES)
@@ -178,7 +177,7 @@ protected:
 						Nvm::memcpy32(pRowCur, pbPos, cbPage);
 						Nvm::WriteRwweePageReady();
 						m_iCurPage++;
-						return;		// come back here to WaitFill
+						return true;		// come back here to WaitFill
 					}
 				}
 
@@ -193,7 +192,7 @@ protected:
 				m_arpRow[m_iCurRow++] = pRow;	// update row we are using
 
 				m_state = ST_Start;
-				return;
+				return true;
 		} // switch
 	}
 
