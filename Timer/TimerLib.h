@@ -94,6 +94,14 @@ public:
 		while (!tmr.CheckDelay_ms(ms));
 	}
 
+	INLINE_ATTR static void Delay_ticks(Timer_t ticks)
+	{
+		Define_Timer	tmr;
+		
+		tmr.Start();
+		while (!tmr.CheckDelay_ticks(ticks));
+	}
+
 public:
 	INLINE_ATTR static void ShortDelay_ns(double ns)	{ ShortDelay_clocks(ClocksFromNs(ns)); }
 	INLINE_ATTR static void ShortDelay_us(double us)	{ ShortDelay_clocks(ClocksFromUs(us)); }

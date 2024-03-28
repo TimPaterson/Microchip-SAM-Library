@@ -70,7 +70,7 @@ public:
 
 		// standard 8-bit, MSB first
 		spiCtrlA.reg = 0;
-		spiCtrlA.bit.MODE = SERCOM_SPI_CTRLA_MODE_SPI_MASTER_Val;
+		spiCtrlA.bit.MODE = 3;		// SPI master mode
 		spiCtrlA.bit.DOPO = padMosi;
 		spiCtrlA.bit.DIPO = padMiso;
 		spiCtrlA.bit.CPHA = modeSpi & 1;

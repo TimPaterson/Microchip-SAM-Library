@@ -164,17 +164,6 @@ inline void SetPortMuxConfigB(uint uMux, uint uConfig, uint uPins)	{ SetPortMuxC
 inline void SetPortMuxA(uint uMux, uint uPins)						{ SetPortMux(uMux, uPins, 0); }
 inline void SetPortMuxB(uint uMux, uint uPins)						{ SetPortMux(uMux, uPins, 1); }
 
-inline void SetPortMuxPin(uint uMux, uint uPin)
-{
-	SetPortConfig(		
-		PORT_WRCONFIG_WRPMUX |
-		PORT_WRCONFIG_PMUX(uMux) |
-		PORT_WRCONFIG_PMUXEN,
-		1 << (uPin & 0x1F),
-		uPin >> 5
-	);
-}
-
 enum PORT_MUX
 {
 	PORT_MUX_A,
