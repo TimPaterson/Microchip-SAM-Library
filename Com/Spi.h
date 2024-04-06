@@ -41,53 +41,56 @@ enum SpiMode
 
 //****************************************************************************
 
-template <int iUsart, uint uSsPin, uint uSsPort = 0, byte bDummy = 0>
+template <int sercom, uint ssPin, uint ssPort = 0, byte bDummy = 0>
 class Spi
 {
-public:
-	static SercomSpi *pSpi(int i) {return ((SercomSpi *)((byte *)SERCOM0 + ((byte *)SERCOM1 - (byte *)SERCOM0) * i)); }
+	static SercomSpi *pSpi() { return ((SercomSpi *)((byte *)SERCOM0 + ((byte *)SERCOM1 - (byte *)SERCOM0) * sercom)); }
 
 public:
 	static void SpiInit(SpiInPad padMiso, SpiOutPad padMosi, SpiMode modeSpi)
 	{
 		SERCOM_SPI_CTRLA_Type	spiCtrlA;
+		
+		// Ensure SS pin is output and high level
+		SetPins(ssPin, ssPort);
+		DirOutPins(ssPin, ssPort);		
 
 #if	defined(GCLK_PCHCTRL_GEN_GCLK0)
 		// Enable clock
-		MCLK->APBCMASK.reg |= 1 << (MCLK_APBCMASK_SERCOM0_Pos + iUsart);
+		MCLK->APBCMASK.reg |= 1 << (MCLK_APBCMASK_SERCOM0_Pos + sercom);
 
 		// Clock it with GCLK0
-		GCLK->PCHCTRL[SERCOM0_GCLK_ID_CORE + iUsart].reg = GCLK_PCHCTRL_GEN_GCLK0 |
+		GCLK->PCHCTRL[SERCOM0_GCLK_ID_CORE + sercom].reg = GCLK_PCHCTRL_GEN_GCLK0 |
 			GCLK_PCHCTRL_CHEN;
 #else
 		// Enable clock
-		PM->APBCMASK.reg |= 1 << (PM_APBCMASK_SERCOM0_Pos + iUsart);
+		PM->APBCMASK.reg |= 1 << (PM_APBCMASK_SERCOM0_Pos + sercom);
 
 		// Clock it with GCLK0
 		GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 |
-			(GCLK_CLKCTRL_ID_SERCOM0_CORE + iUsart);
+			(GCLK_CLKCTRL_ID_SERCOM0_CORE + sercom);
 #endif
 
 		// standard 8-bit, MSB first
 		spiCtrlA.reg = 0;
-		spiCtrlA.bit.MODE = 3;		// SPI master mode
+		spiCtrlA.bit.MODE = 3;		// SPI host mode
 		spiCtrlA.bit.DOPO = padMosi;
 		spiCtrlA.bit.DIPO = padMiso;
 		spiCtrlA.bit.CPHA = modeSpi & 1;
 		spiCtrlA.bit.CPOL = modeSpi & 2;
 		spiCtrlA.bit.IBON = 1;
-		pSpi(iUsart)->CTRLA.reg = spiCtrlA.reg;
-		pSpi(iUsart)->CTRLB.reg = SERCOM_SPI_CTRLB_RXEN;
+		pSpi()->CTRLA.reg = spiCtrlA.reg;
+		pSpi()->CTRLB.reg = SERCOM_SPI_CTRLB_RXEN;
 	}
 
 	static void Enable()
 	{
-		pSpi(iUsart)->CTRLA.bit.ENABLE = 1;
+		pSpi()->CTRLA.bit.ENABLE = 1;
 	}
 
 	static void Disable()
 	{
-		pSpi(iUsart)->CTRLA.bit.ENABLE = 0;
+		pSpi()->CTRLA.bit.ENABLE = 0;
 	}
 
 #ifdef F_CPU
@@ -131,10 +134,11 @@ public:
 		return ReadByte();
 	}
 
-	static void ReadBytes(byte *pb, uint cb) NO_INLINE_ATTR
+	static void ReadBytes(void *pv, uint cb) NO_INLINE_ATTR
 	{
 		uint	cbSend;
 		uint	cbRead;
+		byte	*pb = (byte *)pv;
 
 		cbRead = cb;
 		cbSend = 2;		// size of read buffer
@@ -158,10 +162,12 @@ public:
 		}
 	}
 
-	static void WriteBytes(byte *pb, uint cb) NO_INLINE_ATTR
+	static void WriteBytes(const void *pv, uint cb) NO_INLINE_ATTR
 	{
+		const byte	*pb = (byte *)pv;
+		
 		ClearTxComplete();
-		pSpi(iUsart)->CTRLB.reg = 0;	// Disable receiver
+		pSpi()->CTRLB.reg = 0;	// Disable receiver
 		for (;;)
 		{
 			if (CanSendByte())
@@ -172,56 +178,56 @@ public:
 			}
 		}
 		while (!IsTxComplete());
-		pSpi(iUsart)->CTRLB.reg = SERCOM_SPI_CTRLB_RXEN;
+		pSpi()->CTRLB.reg = SERCOM_SPI_CTRLB_RXEN;
 	}
 
-	static void Select()	{ ClearPins(uSsPin, uSsPort); }
-	static void Deselect()	{ SetPins(uSsPin, uSsPort); }
+	static void Select()	{ ClearPins(ssPin, ssPort); }
+	static void Deselect()	{ SetPins(ssPin, ssPort); }
 
 protected:
 	static byte ReadByte()
 	{
-		return pSpi(iUsart)->DATA.reg;
+		return pSpi()->DATA.reg;
 	}
 
 	static void WriteByte(byte b = bDummy)
 	{
-		pSpi(iUsart)->DATA.reg = b;
+		pSpi()->DATA.reg = b;
 	}
 
 	static bool IsByteReady()
 	{
-		return pSpi(iUsart)->INTFLAG.bit.RXC;
+		return pSpi()->INTFLAG.bit.RXC;
 	}
 
 	static bool CanSendByte()
 	{
-		return pSpi(iUsart)->INTFLAG.bit.DRE;
+		return pSpi()->INTFLAG.bit.DRE;
 	}
 
 	static bool IsTxComplete()
 	{
-		return pSpi(iUsart)->INTFLAG.bit.TXC;
+		return pSpi()->INTFLAG.bit.TXC;
 	}
 
 	static void ClearTxComplete()
 	{
-		pSpi(iUsart)->INTFLAG.reg = SERCOM_SPI_INTFLAG_TXC;
+		pSpi()->INTFLAG.reg = SERCOM_SPI_INTFLAG_TXC;
 	}
 
 	static bool IsRxOverflow()
 	{
-		return pSpi(iUsart)->INTFLAG.bit.ERROR;
+		return pSpi()->INTFLAG.bit.ERROR;
 	}
 
 	static void ClearOverflow()
 	{
-		pSpi(iUsart)->INTFLAG.reg = SERCOM_SPI_INTFLAG_ERROR;
+		pSpi()->INTFLAG.reg = SERCOM_SPI_INTFLAG_ERROR;
 	}
 
 	static void SetBaudRateReg(uint val)
 	{
-		pSpi(iUsart)->BAUD.reg = val;
+		pSpi()->BAUD.reg = val;
 	}
 
 	static void SetBaudRateRegEnabled(uint baud) INLINE_ATTR
@@ -229,11 +235,11 @@ protected:
 		SERCOM_SPI_CTRLA_Type	ctrlA;
 		SERCOM_SPI_CTRLA_Type	ctrlAsave;
 
-		ctrlAsave.reg = pSpi(iUsart)->CTRLA.reg;
+		ctrlAsave.reg = pSpi()->CTRLA.reg;
 		ctrlA.reg = ctrlAsave.reg;
 		ctrlA.bit.ENABLE = 0;
-		pSpi(iUsart)->CTRLA.reg = ctrlA.reg;
+		pSpi()->CTRLA.reg = ctrlA.reg;
 		SetBaudRateReg(baud);
-		pSpi(iUsart)->CTRLA.reg = ctrlAsave.reg;
+		pSpi()->CTRLA.reg = ctrlAsave.reg;
 	}
 };

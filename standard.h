@@ -104,3 +104,18 @@ typedef union
 #elif defined(__SAM_3_4__)
 	#include <Sam3-4/IoHelp.h>
 #endif
+
+enum NvicPriorityLevels
+{
+	NVIC_PriorityHi = 0,
+	NVIC_PriorityMidHi = 0x40,
+	NVIC_PriorityMidLo = 0x80,
+	NVIC_PriorityLo = 0xC0
+};
+ 
+inline void SetDefaultInterruptPriority(uint priority)
+{
+	volatile ulong* p = NVIC->IP;
+	for (int i = 8; i > 0; i--)
+		*p++ = priority | (priority << 8) | (priority << 16) | (priority << 24);
+}
