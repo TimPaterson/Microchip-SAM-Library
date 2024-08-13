@@ -54,7 +54,7 @@
 //
 // For each input capture timer, you call this static member function:
 //
-// void Init(int iPin, int iExInt, int iEvChan, bool fInvert = false)
+// void Init(int iPin, int iExInt, int iEvChan, bool fInvert = false, captType = CAPT_Both)
 // - iPin: port pin number, 0-31 for Port A, 32-63 for Port B, etc.
 // - iExInt: external interrupt for that port pin
 // - iEvChan: event channel, 0 - 5 or more depending on device
@@ -103,7 +103,7 @@
 	InputCapture_t<#ctr[2] == 'C', (#ctr[2] == 'C' ? #ctr[3] : #ctr[2]) - '0', div, GET_PRESCALE(#ctr[2] == 'C', div)>
 
 #define DEFINE_CAPTURE_ISR(ctr, ...)	void ctr##_Handler() { __VA_ARGS__; }
-
+	
 class InputCapture
 {
 public:

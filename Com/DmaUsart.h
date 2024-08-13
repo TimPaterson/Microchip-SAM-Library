@@ -401,8 +401,22 @@ public:
 		USART_PTR(iUsart)->CTRLA.bit.ENABLE = 0;
 	}
 
+	void StreamInit(FILE *pFile, uint8_t flags = _FDEV_SETUP_RW | _FDEV_SETUP_CRLF)
+	{
+		union {void (DmaUsartBase::*mf)(byte); _fdev_put_t *p;} wr = {&DmaUsartBase::WriteByte};
+		union {byte (DmaUsart_t::*mf)(); _fdev_get_t *p;} rd = {&DmaUsart_t::ReadByteWait};
+		fdev_setup_stream(pFile, wr.p, rd.p, flags);
+		fdev_set_udata(pFile, this);
+	}
+
 	//************************************************************************
 	// Read Functions
+
+	byte ReadByteWait() NO_INLINE_ATTR
+	{
+		while (!IsByteReady());
+		return ReadByte();
+	}
 
 	ushort BytesCanRead() NO_INLINE_ATTR
 	{

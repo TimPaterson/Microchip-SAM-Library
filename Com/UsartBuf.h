@@ -162,7 +162,7 @@
 // bool IsByteReady()
 // byte ReadByte()					
 // void ReadBytes(void *pv, int cb)	
-// byte ReadByteWdr()				
+// byte ReadByteWait()					
 // byte PeekByte()					
 // byte PeekByte(int off)			
 // int BytesCanWrite()				
@@ -276,6 +276,12 @@ public:
 			WriteByte(va_arg(args, int));
 		va_end(args);
 	}
+	
+	byte ReadByteWait() NO_INLINE_ATTR
+	{
+		while (!IsByteReady());
+		return ReadByte();
+	}
 
 	//************************************************************************
 	// These are additional methods
@@ -386,10 +392,11 @@ public:
 		return GetUsart()->INTENCLR.reg & SERCOM_USART_INTFLAG_DRE;
 	}
 
-	void StreamInit(FILE *pFile)
+	void StreamInit(FILE *pFile, uint8_t flags = _FDEV_SETUP_RW | _FDEV_SETUP_CRLF)
 	{
-		union {void (UsartBuf_t::*mf)(byte); _fdev_put_t *p;} u = {&UsartBuf_t::WriteByte};
-		fdev_setup_stream(pFile, u.p, NULL, _FDEV_SETUP_WRITE | _FDEV_SETUP_CRLF);
+		union {void (UsartBuf_t::*mf)(byte); _fdev_put_t *p;} wr = {&UsartBuf_t::WriteByte};
+		union {byte (UsartBuf_t::*mf)(); _fdev_get_t *p;} rd = {&UsartBuf_t::ReadByteWait};
+		fdev_setup_stream(pFile, wr.p, rd.p, flags);
 		fdev_set_udata(pFile, this);
 	}
 
