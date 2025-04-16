@@ -263,6 +263,22 @@ public:
 		SendBytes();
 	}
 
+	void Write16(ushort u) NO_INLINE_ATTR
+	{
+		PutByte(u);
+		PutByte(u >> 8);
+		SendBytes();
+	}
+
+	void Write32(ulong u) NO_INLINE_ATTR
+	{
+		PutByte(u);
+		PutByte(u >> 8);
+		PutByte(u >> 16);
+		PutByte(u >> 24);
+		SendBytes();
+	}
+
 	byte IsXmitInProgress()
 	{
 		DMAC->CHID.reg = m_bChanWrite;
@@ -440,8 +456,8 @@ public:
 		}
 
 		// Make sure we don't report more bytes than the buffer size
-		while (cb >= cbRcvBuf)
-			cb -= cbRcvBuf;
+		if (cb >= cbRcvBuf)
+			cb = 0;
 		return cb;
 	}
 

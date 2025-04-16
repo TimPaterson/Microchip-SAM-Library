@@ -277,6 +277,20 @@ public:
 		va_end(args);
 	}
 	
+	void Write16(ushort u) NO_INLINE_ATTR
+	{
+		WriteByte(u);
+		WriteByte(u >> 8);
+	}
+
+	void Write32(ulong u) NO_INLINE_ATTR
+	{
+		WriteByte(u);
+		WriteByte(u >> 8);
+		WriteByte(u >> 16);
+		WriteByte(u >> 24);
+	}
+
 	byte ReadByteWait() NO_INLINE_ATTR
 	{
 		while (!IsByteReady());

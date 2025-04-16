@@ -8,6 +8,12 @@
 #pragma once
 #pragma pack(4)
 
+#ifdef __cplusplus
+#define EXTERN_C extern "C"
+#else
+#define EXTERN_C
+#endif
+
 #include <sam.h>
 #include <sam_spec.h>
 #include <stddef.h>
@@ -16,6 +22,9 @@
 #include <string.h>
 #include <math.h>
 #include <stdbool.h>
+
+// missing from math.h
+EXTERN_C void sincosf(float radians, float *ptrSin, float *ptrCos);
 
 // Standard data types
 typedef	uint8_t			byte;
@@ -68,12 +77,6 @@ inline int DivIntRnd(int n, int d)
 	int rnd = d / 2;
 	return (n + ((n ^ d) < 0 ? -rnd : rnd)) / d; 
 }
-
-#ifdef __cplusplus
-#define EXTERN_C extern "C"
-#else
-#define EXTERN_C
-#endif
 
 typedef union
 {

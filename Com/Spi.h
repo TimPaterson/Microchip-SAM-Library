@@ -47,7 +47,7 @@ class Spi
 	static SercomSpi *pSpi() { return ((SercomSpi *)((byte *)SERCOM0 + ((byte *)SERCOM1 - (byte *)SERCOM0) * sercom)); }
 
 public:
-	static void SpiInit(SpiInPad padMiso, SpiOutPad padMosi, SpiMode modeSpi)
+	static void SpiInit(SpiInPad padMiso, SpiOutPad padMosi, SpiMode modeSpi = SPIMODE_0)
 	{
 		SERCOM_SPI_CTRLA_Type	spiCtrlA;
 		
@@ -127,11 +127,11 @@ public:
 
 	static void Select(bool fSelect)	{ if (fSelect) Select(); else Deselect(); }
 
-	static byte SpiByte(byte b = bDummy) NO_INLINE_ATTR
+	static byte WriteByte(byte b = bDummy) NO_INLINE_ATTR
 	{
-		WriteByte(b);
+		SpiWrite(b);
 		while (!IsByteReady());
-		return ReadByte();
+		return SpiRead();
 	}
 
 	static void ReadBytes(void *pv, uint cb) NO_INLINE_ATTR
@@ -147,14 +147,14 @@ public:
 		{
 			if (cbSend > 0 && cb > 0 && CanSendByte())
 			{
-				WriteByte();
+				SpiWrite();
 				cbSend--;
 				cb--;
 			}
 
 			if (IsByteReady())
 			{
-				*pb++ = ReadByte();
+				*pb++ = SpiRead();
 				if (--cbRead == 0)
 					break;
 				cbSend++;	
@@ -172,7 +172,7 @@ public:
 		{
 			if (CanSendByte())
 			{
-				WriteByte(*pb++);
+				SpiWrite(*pb++);
 				if (--cb == 0)
 					break;
 			}
@@ -181,16 +181,25 @@ public:
 		pSpi()->CTRLB.reg = SERCOM_SPI_CTRLB_RXEN;
 	}
 
+	static void WriteBytes(int cb, ...)
+	{
+		va_list	args;
+		va_start(args, cb);
+		for ( ; cb > 0; cb--)
+			WriteByte(va_arg(args, int));
+		va_end(args);
+	}
+
 	static void Select()	{ ClearPins(ssPin, ssPort); }
 	static void Deselect()	{ SetPins(ssPin, ssPort); }
 
 protected:
-	static byte ReadByte()
+	static byte SpiRead()
 	{
 		return pSpi()->DATA.reg;
 	}
 
-	static void WriteByte(byte b = bDummy)
+	static void SpiWrite(byte b = bDummy)
 	{
 		pSpi()->DATA.reg = b;
 	}
