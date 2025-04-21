@@ -23,9 +23,6 @@
 #include <math.h>
 #include <stdbool.h>
 
-// missing from math.h
-EXTERN_C void sincosf(float radians, float *ptrSin, float *ptrCos);
-
 // Standard data types
 typedef	uint8_t			byte;
 typedef	int8_t			sbyte;
