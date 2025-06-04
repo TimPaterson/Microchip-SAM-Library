@@ -20,10 +20,10 @@
 // - output: size of the transmit buffer
 //
 // The macro actually parses the text of the sercom argument, so it can't
-// be a macro itself. 
+// be a macro itself.
 //
-// DECLARE_USART must be used in a C++ statement that uses the resulting 
-// type. In the end you need to declare one variable of this type or of a 
+// DECLARE_USART must be used in a C++ statement that uses the resulting
+// type. In the end you need to declare one variable of this type or of a
 // derived type.
 //
 // Examples:
@@ -37,7 +37,7 @@
 // *************
 // INTIALIZATION
 // *************
-// You must set up the PORT mux to assign the physical serial I/O pins to the 
+// You must set up the PORT mux to assign the physical serial I/O pins to the
 // SERCOM module per the data sheet section "I/O Multiplexing and Considerations".
 // This is done with this function:
 //
@@ -51,9 +51,9 @@
 // SetPortMuxA(PORT_MUX_C, SerialTxPin | SerialRxPin, 0);
 //
 // Typically the SERCOM modules are on mux C and mux D. Each SERCOM module
-// has four pads, and a given combination of mux and pin assign that pin 
-// to a specific pad. Pads can be assigned to different functions. For 
-// example, any pad can be assigned as receive data, but only some can be 
+// has four pads, and a given combination of mux and pin assign that pin
+// to a specific pad. Pads can be assigned to different functions. For
+// example, any pad can be assigned as receive data, but only some can be
 // assigned transmit data. Assignment is done with this member function:
 //
 // void Init(RxPad padRx, TxPad padTx)
@@ -64,7 +64,7 @@
 // pads. TXPAD_Pad0_RTS_Pad2_CTS_Pad3 enables hardware handshaking using
 // RTS and CTS. TXPAD_Pad0_TE_Pad2 enables hardware control of an output
 // driver for half-duplex applications (TE = "transmit enable"); this
-// function is not available on all devices (use DECLARE_USART_HALF in 
+// function is not available on all devices (use DECLARE_USART_HALF in
 // this case, see below).
 //
 // This function also sets up standard asynchronous serial parameters
@@ -104,7 +104,7 @@
 //
 // SerialVar.SetBaudRateConst(19200);	// set to 19,200 baud - F_CPU set
 // SerialVar.SetBaudRate(baud, 2000000);	// variable baud, 2MHz CPU clock
-// 
+//
 // Finally, to enable the USART use this member function:
 //
 // void Enable()
@@ -133,7 +133,7 @@
 // ***********
 // HALF_DUPLEX
 // ***********
-// If your SAM MCU supports hardware transmitter enable, then it will control 
+// If your SAM MCU supports hardware transmitter enable, then it will control
 // the transmitter driver in hardware using the correct pad assignment.
 //
 // If your SAM MCU does NOT support hardware transmitter enable, then an
@@ -148,7 +148,7 @@
 // inline void SERCOM1_DriverOn() {	SetPins(Driver_PIN); }
 // inline void SERCOM1_DriverOff(){	ClearPins(Driver_PIN); }
 // DECLARE_USART_HALF(SERCOM1, 50, 50)	SerialHalfDuplex;
-// 
+//
 // Otherwise everything else about DECLARE_USART applies to DECLARE_USART_HALF.
 //
 // *********
@@ -156,18 +156,18 @@
 // *********
 // void Enable()
 // void Disable()
-// void WriteByte(byte b)			
+// void WriteByte(byte b)
 // void WriteBytes(void *pv, int cb)
 // void WriteString(const char *psz)
 // bool IsByteReady()
-// byte ReadByte()					
-// void ReadBytes(void *pv, int cb)	
-// byte ReadByteWait()					
-// byte PeekByte()					
-// byte PeekByte(int off)			
-// int BytesCanWrite()				
-// int BytesCanRead()				
-// bool CanWriteByte()				
+// byte ReadByte()
+// void ReadBytes(void *pv, int cb)
+// byte ReadByteWait()
+// byte PeekByte()
+// byte PeekByte(int off)
+// int BytesCanWrite()
+// int BytesCanRead()
+// bool CanWriteByte()
 // void DiscardReadBuf()
 // void DiscardReadBuf(int cnt)
 // byte IsXmitInProgress()
@@ -198,7 +198,7 @@ const int SERCOM_SIZE = (byte *)SERCOM1 - (byte *)SERCOM0;
 // Define ISR
 #define DEFINE_USART_ISR(usart, var) \
 	void usart##_Handler() {var.UsartIsr();}
-		
+
 //****************************************************************************
 
 enum RxPad
@@ -227,7 +227,7 @@ public:
 
 protected:
 	// We need our WriteByte to enable interrupts
-	void WriteByteInline(byte b)
+	void WriteByteInline(byte b) INLINE_ATTR
 	{
 		IoBuf::WriteByteInline(b);
 		// Enable interrupts
@@ -276,7 +276,7 @@ public:
 			WriteByte(va_arg(args, int));
 		va_end(args);
 	}
-	
+
 	void Write16(ushort u) NO_INLINE_ATTR
 	{
 		WriteByte(u);
@@ -293,7 +293,8 @@ public:
 
 	byte ReadByteWait() NO_INLINE_ATTR
 	{
-		while (!IsByteReady());
+		while (!IsByteReady())
+			wdt_reset();
 		return ReadByte();
 	}
 
@@ -362,7 +363,7 @@ public:
 		GetUsart()->BAUD.reg = rate;
 	}
 
-	void SetBaudRate(uint32_t rate, uint32_t clock) NO_INLINE_ATTR
+	uint CalcBaudRate(uint32_t rate, uint32_t clock)
 	{
 		uint32_t	quo;
 		uint32_t	quoBit;
@@ -381,19 +382,18 @@ public:
 		// Round
 		if (rate >= clock)
 			quo++;
-		SetBaudReg((uint16_t)-quo);
+		return (uint16_t)-quo;
+	}
+
+	void SetBaudRate(uint32_t rate, uint32_t clock) NO_INLINE_ATTR
+	{
+		SetBaudReg(CalcBaudRate(rate, clock));
 	}
 
 #ifdef F_CPU
-	void SetBaudRate(uint32_t rate)
-	{
-		SetBaudRate(rate, F_CPU);
-	}
-
-	void SetBaudRateConst(uint32_t rate)
-	{
-		SetBaudRateConst(rate, F_CPU);
-	}
+	uint CalcBaudRate(uint32_t rate)		{ return CalcBaudRate(rate, F_CPU); }
+	void SetBaudRate(uint32_t rate)			{ SetBaudRate(rate, F_CPU);	}
+	void SetBaudRateConst(uint32_t rate)	{ SetBaudRateConst(rate, F_CPU); }
 #endif
 
 	void SetBaudRateConst(uint32_t rate, uint32_t clock)
@@ -440,12 +440,12 @@ public:
 		}
 	}
 
-	SercomUsart *GetUsart()		{return (SercomUsart *)m_pvIO;}
+	SercomUsart *GetUsart() INLINE_ATTR	{return (SercomUsart *)m_pvIO;}
 };
 
 //****************************************************************************
 
-template <int iUsart, int cbRcvBuf, int cbXmitBuf> 
+template <int iUsart, int cbRcvBuf, int cbXmitBuf>
 class UsartBuf : public UsartBuf_t
 {
 public:
@@ -502,7 +502,7 @@ protected:
 //****************************************************************************
 // Std I/O
 
-template <class Base, int cbBuf> 
+template <class Base, int cbBuf>
 class StdIo : public Base
 {
 public:
@@ -523,7 +523,7 @@ protected:
 // Half-duplex version
 
 template <int iUsart, int cbRcvBuf, int cbXmitBuf, UsartHalfDuplexDriver_t driverOff,
-	UsartHalfDuplexDriver_t driverOn> 
+	UsartHalfDuplexDriver_t driverOn>
 class UsartBufHalf : public UsartBuf_t
 {
 public:

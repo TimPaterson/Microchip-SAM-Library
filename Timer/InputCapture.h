@@ -103,7 +103,7 @@
 	InputCapture_t<#ctr[2] == 'C', (#ctr[2] == 'C' ? #ctr[3] : #ctr[2]) - '0', div, GET_PRESCALE(#ctr[2] == 'C', div)>
 
 #define DEFINE_CAPTURE_ISR(ctr, ...)	void ctr##_Handler() { __VA_ARGS__; }
-	
+
 class InputCapture
 {
 public:
@@ -130,7 +130,7 @@ protected:
 	static void InitEvent(int iPin, int iExInt, int iEvChan)
 	{
 		// Send input pin to EIC so it can become event
-		SetPortMuxA(PORT_MUX_A, 1 << iPin);
+		SetPortMuxConfigA(PORT_MUX_A, PORT_WRCONFIG_INEN, 1 << iPin);
 
 		// Set up External Interrupt Controller to get input on EXTINT[iExInt]
 #ifdef EIC_CTRLA_ENABLE
@@ -144,7 +144,7 @@ protected:
 		EVSYS->CHANNEL[iEvChan].reg = EVSYS_CHANNEL_PATH_ASYNCHRONOUS |
 			EVSYS_CHANNEL_EVGEN(EVSYS_ID_GEN_EIC_EXTINT_0 + iExInt);
 #else
-		EIC->CTRL.reg = 0;
+		EIC->CTRL.reg = 0;	// Ensure not enabled so we can make changes
 		EIC->CONFIG[iExInt >> 3].reg |= (EIC_CONFIG_SENSE0_HIGH | EIC_CONFIG_FILTEN0) << ((iExInt & 7) * 4);
 		EIC->EVCTRL.reg |= (1 << iExInt);
 		EIC->CTRL.reg = EIC_CTRL_ENABLE;
@@ -217,6 +217,7 @@ public:
 			InitEvent(iPin, iExInt, iEvChan);	// Initialize the channel after the user
 
 			// Set up the TCC
+			TCC_PTR(iTc)->CTRLA.reg = 0;	// Ensure not enabled so we can make changes
 			TCC_PTR(iTc)->EVCTRL.reg = TCC_EVCTRL_TCEI1 | TCC_EVCTRL_EVACT1_PPW | eventEn | (fInvert ? TCC_EVCTRL_TCINV1 : 0);
 			TCC_PTR(iTc)->INTENSET.reg = intEn;
 			TCC_PTR(iTc)->CTRLA.reg = iPrescaleVal | captEn | TCC_CTRLA_PRESCSYNC_PRESC | TCC_CTRLA_ENABLE;
@@ -249,6 +250,7 @@ public:
 			// Set up the TC
 			MCLK->APBCMASK.reg |= MCLK_APBCMASK_TC0 << iTc;
 			GCLK->PCHCTRL[TC0_GCLK_ID + iTc / 2].reg = GCLK_PCHCTRL_GEN_GCLK0 | GCLK_PCHCTRL_CHEN;
+			TC_PTR(iTc)->CTRLA.reg = 0;	// Ensure not enabled so we can make changes
 			TC_PTR(iTc)->EVCTRL.reg = TC_EVCTRL_TCEI | TC_EVCTRL_EVACT_PPW | (fInvert ? TC_EVCTRL_TCINV : 0);
 			TC_PTR(iTc)->INTENSET.reg = intEn;
 			TC_PTR(iTc)->CTRLA.reg = iPrescaleVal | TC_CTRLA_PRESCSYNC_PRESC | captEn | TC_CTRLA_ENABLE;
@@ -281,6 +283,7 @@ public:
 			PM->APBCMASK.reg |= PM_APBCMASK_TC3 << tc;
 			GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 |
 				(GCLK_CLKCTRL_ID_TCC2_TC3 + (tc + 1) / 2);
+			TC_PTR(iTc)->CTRLA.reg = 0;	// Ensure not enabled so we can make changes
 			TC_PTR(iTc)->EVCTRL.reg = TC_EVCTRL_TCEI | TC_EVCTRL_EVACT_PPW | (fInvert ? TC_EVCTRL_TCINV : 0);
 			TC_PTR(iTc)->INTENSET.reg = intEn;
 			TC_PTR(iTc)->CTRLC.reg = captEn;

@@ -7,7 +7,7 @@
 // input and output. It can be used for serial I/O, two-wire slave, etc.
 //
 // This class does not include the buffers themselves. The UsartBuf
-// class in UsartBuf.h shows how to create a template that creates a 
+// class in UsartBuf.h shows how to create a template that creates a
 // derived class with specific buffer sizes.
 //
 //****************************************************************************
@@ -34,7 +34,7 @@ public:
 	void DiscardReadBuf()	{ m_pbNextRcvOut = m_pbNextRcvIn; }
 
 protected:
-	void WriteByteInline(byte b)
+	void WriteByteInline(byte b) INLINE_ATTR
 	{
 		byte	*pb;
 
@@ -49,15 +49,15 @@ protected:
 		m_pbNextXmitIn = pb;
 	}
 
-	void WriteBytesInline(void *pv, int cb)
+	void WriteBytesInline(void *pv, int cb) INLINE_ATTR
 	{
 		byte	*pb;
-		
+
 		for (pb = (byte *)pv; cb > 0; cb--, pb++)
 			WriteByte(*pb);
 	}
 
-	byte ReadByteInline()
+	byte ReadByteInline() INLINE_ATTR
 	{
 		byte	*pb;
 		byte	b;
@@ -70,15 +70,15 @@ protected:
 		return b;
 	}
 
-	void ReadBytesInline(void *pv, int cb)
+	void ReadBytesInline(void *pv, int cb) INLINE_ATTR
 	{
 		byte	*pb;
-		
+
 		for (pb = (byte *)pv; cb > 0; cb--, pb++)
 			*pb = ReadByte();
 	}
 
-	byte PeekByteInline()
+	byte PeekByteInline() INLINE_ATTR
 	{
 		byte	*pb;
 
@@ -88,17 +88,17 @@ protected:
 		return *pb;
 	}
 
-	byte PeekByteInline(int off)
+	byte PeekByteInline(int off) INLINE_ATTR
 	{
 		byte	*pb;
-		
+
 		pb = m_pbNextRcvOut + off + 1;
 		if (pb >= m_pbRcvBufEnd)
 			pb -= m_pbRcvBufEnd - GetRcvBuf();
 		return *pb;
 	}
 
-	int BytesCanWriteInline()
+	int BytesCanWriteInline() INLINE_ATTR
 	{
 		byte	*pbIn;
 		byte	*pbOut;
@@ -109,8 +109,8 @@ protected:
 			pbOut += m_pbXmitBufEnd - GetXmitBuf();
 		return pbOut - pbIn - 1;
 	}
-	
-	int BytesCanReadInline()
+
+	int BytesCanReadInline() INLINE_ATTR
 	{
 		byte	*pbIn;
 		byte	*pbOut;
@@ -122,7 +122,7 @@ protected:
 		return pbIn - pbOut;
 	}
 
-	bool CanWriteByteInline()
+	bool CanWriteByteInline() INLINE_ATTR
 	{
 		byte	*pb;
 
@@ -133,7 +133,7 @@ protected:
 		return pb != m_pbNextXmitOut;
 	}
 
-	void DiscardReadBufInline(int cnt)
+	void DiscardReadBufInline(int cnt) INLINE_ATTR
 	{
 		byte	*pb;
 
@@ -142,11 +142,11 @@ protected:
 			pb -= m_pbRcvBufEnd - GetRcvBuf();
 		m_pbNextRcvOut = pb;
 	}
-	
-	void WriteStringInline(const char *psz)
+
+	void WriteStringInline(const char *psz) INLINE_ATTR
 	{
 		char	ch;
-	
+
 		for (;;)
 		{
 			ch = *psz++;
@@ -154,7 +154,7 @@ protected:
 				return;
 			if (ch == '\n')
 				WriteByte('\r');
-			WriteByte(ch);		
+			WriteByte(ch);
 		}
 	}
 
@@ -163,7 +163,7 @@ protected:
 	// I.E., SendByte() removes a byte put there by WriteByte().
 	// They must NOT be used if using interrupt-driven I/O except
 	// within the ISR itself.
-	
+
 	byte SendByte()
 	{
 		byte	*pb;
@@ -180,12 +180,12 @@ protected:
 		}
 		return 0;
 	}
-	
+
 	bool IsByteToSend()
 	{
 		return m_pbNextXmitIn != m_pbNextXmitOut;
 	}
-	
+
 	int BytesToSend()
 	{
 		byte	*pbIn;
@@ -197,12 +197,12 @@ protected:
 			pbIn += m_pbXmitBufEnd - GetXmitBuf();
 		return pbIn - pbOut;
 	}
-	
+
 	void DiscardSendBuf()
 	{
 		m_pbNextXmitOut = m_pbNextXmitIn;
 	}
-	
+
 	void ReceiveByte(byte bDat)
 	{
 		byte	*pb;
@@ -218,7 +218,7 @@ protected:
 		*pb = bDat;
 		m_pbNextRcvIn = pb;
 	}
-	
+
 	bool CanReceiveByte()
 	{
 		byte	*pb;
@@ -227,9 +227,9 @@ protected:
 		if (pb == m_pbRcvBufEnd)
 			pb = GetRcvBuf();
 
-		return pb != m_pbNextRcvOut;		
+		return pb != m_pbNextRcvOut;
 	}
-	
+
 	int BytesCanReceive()
 	{
 		byte	*pbIn;
@@ -247,12 +247,12 @@ protected:
 protected:
 	void Init(int cbRcvBuf, int cbXmitBuf)
 	{
-		m_pbNextRcvIn = m_pbNextRcvOut = GetRcvBuf(); 
+		m_pbNextRcvIn = m_pbNextRcvOut = GetRcvBuf();
 		m_pbRcvBufEnd =  GetRcvBuf() + cbRcvBuf;
 		m_pbNextXmitOut = m_pbNextXmitIn = GetXmitBuf();
 		m_pbXmitBufEnd = GetXmitBuf() + cbXmitBuf;
 	}
-	
+
 	byte	*GetRcvBuf()	{return m_arbRcvBuf;}
 	byte	*GetXmitBuf()	{return m_pbRcvBufEnd;}
 
